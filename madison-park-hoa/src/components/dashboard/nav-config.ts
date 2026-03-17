@@ -73,6 +73,7 @@ export const pageTitles: Record<string, string> = {
   "/dashboard/violations": "Violations",
   "/dashboard/email": "Email Center",
   "/dashboard/vendors": "Vendors",
+  "/dashboard/vendors/jobs": "Work Orders",
   "/dashboard/announcements": "Announcements",
   "/dashboard/documents": "Documents",
   "/dashboard/payments": "Payments",

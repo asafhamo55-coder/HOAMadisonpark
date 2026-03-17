@@ -1,18 +1,20 @@
 import { getCurrentUser } from "@/lib/auth"
-import { getVendorsPageData } from "./page-data"
-import { VendorsView } from "./vendors-view"
+import { getJobsPageData } from "./page-data"
+import { JobsView } from "./jobs-view"
 
-export default async function VendorsPage() {
+export default async function VendorJobsPage() {
   const [user, data] = await Promise.all([
     getCurrentUser(),
-    getVendorsPageData(),
+    getJobsPageData(),
   ])
 
   const canManage = user?.role === "admin" || user?.role === "board"
 
   return (
-    <VendorsView
+    <JobsView
+      jobs={data.jobs}
       vendors={data.vendors}
+      properties={data.properties}
       canManage={canManage}
     />
   )
