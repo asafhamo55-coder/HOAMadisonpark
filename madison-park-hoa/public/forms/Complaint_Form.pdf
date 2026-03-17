@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Complaint Form - Madison Park HOA</title>
+<style>
+body{font-family:Georgia,"Times New Roman",serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a1a;font-size:13px;line-height:1.5}
+h1{font-size:20px;color:#1e3a5f;border-bottom:2px solid #1e3a5f;padding-bottom:8px;margin-bottom:4px}
+h2{font-size:14px;color:#1e3a5f;margin-top:24px;margin-bottom:8px}
+.subtitle{font-size:12px;color:#666;margin-bottom:20px}
+.field{margin-bottom:12px}
+.field label{display:block;font-weight:bold;font-size:11px;text-transform:uppercase;color:#555;margin-bottom:2px}
+.line{border-bottom:1px solid #333;height:24px;margin-bottom:4px}
+.line-half{display:inline-block;width:48%;border-bottom:1px solid #333;height:24px;margin-bottom:4px}
+.checkbox-group{margin:8px 0}
+.checkbox-group label{display:inline-block;margin-right:20px;font-size:12px}
+.checkbox-group label::before{content:"☐ "}
+.box{border:1px solid #333;min-height:100px;margin-bottom:4px;padding:4px}
+.sig-row{display:flex;gap:40px;margin-top:24px}
+.sig-row .field{flex:1}
+.footer{margin-top:30px;font-size:10px;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:8px}
+@media print{body{margin:20px}}
+</style>
+</head>
+<body>
+<h1>Community Complaint Form</h1>
+<p class="subtitle">Madison Park Homeowners Association &bull; Johns Creek, GA 30022</p>
+
+<h2>Your Information</h2>
+<div class="field"><label>Full Name</label><div class="line"></div></div>
+<div class="field"><label>Property Address</label><div class="line"></div></div>
+<div class="field">
+  <span style="display:inline-block;width:48%"><label>Phone</label><div class="line-half"></div></span>
+  <span style="display:inline-block;width:48%"><label>Email</label><div class="line-half"></div></span>
+</div>
+
+<h2>Complaint Details</h2>
+<div class="field"><label>Category (check one)</label>
+<div class="checkbox-group">
+  <label>Noise</label>
+  <label>Parking</label>
+  <label>Property Maintenance</label>
+  <label>Pets / Animals</label>
+  <label>Landscaping</label>
+  <label>Common Area</label>
+  <label>Safety Concern</label>
+  <label>Other</label>
+</div></div>
+
+<div class="field"><label>Address or Location of Concern</label><div class="line"></div></div>
+<div class="field">
+  <span style="display:inline-block;width:48%"><label>Date of Incident</label><div class="line-half"></div></span>
+  <span style="display:inline-block;width:48%"><label>Time of Incident</label><div class="line-half"></div></span>
+</div>
+<div class="field"><label>Is this an ongoing issue?</label>
+<div class="checkbox-group">
+  <label>Yes</label>
+  <label>No</label>
+  <label>First occurrence</label>
+</div></div>
+
+<div class="field"><label>Detailed Description of Complaint</label><div class="box"></div></div>
+<div class="field"><label>Previous Steps Taken (if any)</label><div class="box" style="min-height:60px"></div></div>
+<div class="field"><label>Desired Resolution</label><div class="box" style="min-height:60px"></div></div>
+
+<p style="font-size:11px;margin-top:20px"><strong>Acknowledgment:</strong> I certify that the information provided is true to the best of my knowledge. I understand the HOA Board will review this complaint and respond within a reasonable timeframe. Anonymous complaints may limit the Board's ability to investigate.</p>
+
+<div class="sig-row">
+  <div class="field"><label>Signature</label><div class="line"></div></div>
+  <div class="field"><label>Date</label><div class="line"></div></div>
+</div>
+
+<p class="footer">Submit completed form to the HOA Board via the resident portal or email to board@madisonparkhoa.com<br/>The Board aims to acknowledge all complaints within 7 business days.</p>
+</body>
+</html>

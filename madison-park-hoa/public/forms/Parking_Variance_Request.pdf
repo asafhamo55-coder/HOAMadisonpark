@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Parking Variance Request - Madison Park HOA</title>
+<style>
+body{font-family:Georgia,"Times New Roman",serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a1a;font-size:13px;line-height:1.5}
+h1{font-size:20px;color:#1e3a5f;border-bottom:2px solid #1e3a5f;padding-bottom:8px;margin-bottom:4px}
+h2{font-size:14px;color:#1e3a5f;margin-top:24px;margin-bottom:8px}
+.subtitle{font-size:12px;color:#666;margin-bottom:20px}
+.field{margin-bottom:12px}
+.field label{display:block;font-weight:bold;font-size:11px;text-transform:uppercase;color:#555;margin-bottom:2px}
+.line{border-bottom:1px solid #333;height:24px;margin-bottom:4px}
+.line-half{display:inline-block;width:48%;border-bottom:1px solid #333;height:24px;margin-bottom:4px}
+.checkbox-group{margin:8px 0}
+.checkbox-group label{display:inline-block;margin-right:16px;font-size:12px}
+.checkbox-group label::before{content:"☐ "}
+.box{border:1px solid #333;min-height:80px;margin-bottom:4px;padding:4px}
+.sig-row{display:flex;gap:40px;margin-top:24px}
+.sig-row .field{flex:1}
+.note{background:#f5f5f0;border:1px solid #ddd;padding:10px;font-size:11px;margin:16px 0;border-radius:4px}
+.footer{margin-top:30px;font-size:10px;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:8px}
+@media print{body{margin:20px}}
+</style>
+</head>
+<body>
+<h1>Parking Variance Request</h1>
+<p class="subtitle">Madison Park Homeowners Association &bull; Johns Creek, GA 30022</p>
+
+<div class="note"><strong>Community Parking Rules Reminder:</strong> Each residence is permitted a maximum of two (2) vehicles in the driveway and two (2) in the garage. Street parking is permitted for guests for up to 48 hours. Commercial vehicles, boats, RVs, and trailers must be stored in enclosed garages or off-site. Variance requests must be submitted at least 7 days in advance.</div>
+
+<h2>Homeowner Information</h2>
+<div class="field"><label>Full Name</label><div class="line"></div></div>
+<div class="field"><label>Property Address</label><div class="line"></div></div>
+<div class="field">
+  <span style="display:inline-block;width:48%"><label>Phone</label><div class="line-half"></div></span>
+  <span style="display:inline-block;width:48%"><label>Email</label><div class="line-half"></div></span>
+</div>
+
+<h2>Variance Request Details</h2>
+<div class="field"><label>Type of Variance Requested (check all that apply)</label>
+<div class="checkbox-group">
+  <label>Additional guest vehicles</label>
+  <label>Extended street parking (beyond 48 hrs)</label>
+  <label>Commercial vehicle parking</label>
+  <label>Temporary RV / trailer parking</label>
+  <label>Construction vehicle parking</label>
+  <label>Other</label>
+</div></div>
+
+<div class="field"><label>Number of Additional Vehicles</label><div class="line"></div></div>
+<div class="field"><label>Vehicle Description(s) — Make, Model, Color, License Plate</label><div class="box" style="min-height:60px"></div></div>
+<div class="field">
+  <span style="display:inline-block;width:48%"><label>Start Date</label><div class="line-half"></div></span>
+  <span style="display:inline-block;width:48%"><label>End Date</label><div class="line-half"></div></span>
+</div>
+
+<div class="field"><label>Reason for Variance Request</label><div class="box"></div></div>
+<div class="field"><label>Where will the vehicle(s) be parked?</label><div class="line"></div></div>
+
+<p style="font-size:11px;margin-top:20px"><strong>Agreement:</strong> I understand that this variance, if approved, is temporary and limited to the dates specified above. I agree to comply with all other community parking rules and to remove the vehicle(s) by the end date. Failure to comply may result in towing at the vehicle owner's expense.</p>
+
+<div class="sig-row">
+  <div class="field"><label>Homeowner Signature</label><div class="line"></div></div>
+  <div class="field"><label>Date</label><div class="line"></div></div>
+</div>
+
+<h2 style="margin-top:30px">Board Use Only</h2>
+<div class="checkbox-group" style="margin-bottom:8px">
+  <label>Approved</label>
+  <label>Denied</label>
+  <label>Approved with conditions</label>
+</div>
+<div class="field"><label>Conditions / Notes</label><div class="box" style="min-height:50px"></div></div>
+<div class="sig-row">
+  <div class="field"><label>Board Member Signature</label><div class="line"></div></div>
+  <div class="field"><label>Date</label><div class="line"></div></div>
+</div>
+
+<p class="footer">Submit completed form to the HOA Board via the resident portal or email to board@madisonparkhoa.com<br/>Variance requests are reviewed at the next scheduled Board meeting or within 10 business days.</p>
+</body>
+</html>
