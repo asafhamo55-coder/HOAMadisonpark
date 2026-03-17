@@ -37,16 +37,41 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Redirect unauthenticated users away from protected routes
-  if (!user && pathname.startsWith("/dashboard")) {
+  if (
+    !user &&
+    (pathname.startsWith("/dashboard") || pathname.startsWith("/portal"))
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
   // Redirect authenticated users away from auth pages
+  // Residents go to /portal, everyone else goes to /dashboard
   if (user && (pathname === "/login" || pathname === "/reset-password")) {
     const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
+
+    // Check user role to determine redirect target
+    const supabaseAdmin = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll() {},
+        },
+      }
+    )
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    url.pathname =
+      profile?.role === "resident" ? "/portal" : "/dashboard"
     return NextResponse.redirect(url)
   }
 
