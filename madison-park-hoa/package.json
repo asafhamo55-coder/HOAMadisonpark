@@ -34,6 +34,7 @@
     "react-dom": "^18",
     "react-email": "^5.2.9",
     "react-hook-form": "^7.71.2",
+    "recharts": "^3.8.0",
     "resend": "^6.9.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
