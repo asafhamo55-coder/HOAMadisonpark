@@ -1,11 +1,13 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { Bell, Menu } from "lucide-react"
+import { Menu } from "lucide-react"
 
 import { pageTitles } from "@/components/dashboard/nav-config"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { GlobalSearch } from "@/components/dashboard/global-search"
+import { NotificationBell } from "@/components/dashboard/notification-bell"
 
 function getInitials(name: string | null): string {
   if (!name) return "?"
@@ -19,14 +21,14 @@ function getInitials(name: string | null): string {
 
 export function Header({
   user,
-  notificationCount,
+  userId,
   onMenuClick,
 }: {
   user: {
     full_name: string | null
     avatar_url: string | null
   }
-  notificationCount: number
+  userId: string
   onMenuClick: () => void
 }) {
   const pathname = usePathname()
@@ -54,16 +56,11 @@ export function Header({
       <h1 className="text-lg font-semibold md:text-xl">{title}</h1>
 
       <div className="ml-auto flex items-center gap-3">
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {notificationCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-sidebar-accent px-1 text-[10px] font-bold text-white">
-              {notificationCount > 99 ? "99+" : notificationCount}
-            </span>
-          )}
-          <span className="sr-only">Notifications</span>
-        </Button>
+        {/* Global search */}
+        <GlobalSearch />
+
+        {/* Notification bell with real-time updates */}
+        <NotificationBell userId={userId} />
 
         {/* User avatar */}
         <Avatar className="h-8 w-8">

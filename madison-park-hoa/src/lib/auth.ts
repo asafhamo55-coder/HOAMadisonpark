@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 
@@ -15,7 +16,7 @@ export type UserProfile = {
  * Returns the current authenticated user's profile (with role).
  * Returns null if not authenticated or no profile row exists.
  */
-export async function getCurrentUser(): Promise<UserProfile | null> {
+export const getCurrentUser = cache(async (): Promise<UserProfile | null> => {
   const supabase = createClient()
 
   const {
@@ -33,7 +34,7 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
   if (!profile) return null
 
   return profile as UserProfile
-}
+})
 
 /**
  * Ensures the current user has one of the allowed roles.

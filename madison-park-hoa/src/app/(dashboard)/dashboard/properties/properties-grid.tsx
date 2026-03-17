@@ -10,6 +10,7 @@ import {
   Mail,
   Users,
   CreditCard,
+  Download,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -122,12 +123,49 @@ export function PropertiesGrid({
           />
         </div>
 
-        {canManage && (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Property
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const rows = filtered.map((p) => ({
+                Address: p.address,
+                "Lot #": p.lot_number || "",
+                Status: p.status,
+                Residents: p.currentResidents.map((r) => r.full_name).join("; "),
+                "Open Violations": String(p.openViolations),
+                "Overdue Payments": String(p.overduePayments),
+              }))
+              if (rows.length === 0) return
+              const headers = Object.keys(rows[0])
+              const csv = [
+                headers.join(","),
+                ...rows.map((r) =>
+                  headers.map((h) => {
+                    const v = r[h as keyof typeof r]
+                    return v.includes(",") ? `"${v}"` : v
+                  }).join(",")
+                ),
+              ].join("\n")
+              const blob = new Blob([csv], { type: "text/csv" })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url
+              a.download = `property-directory-${new Date().toISOString().slice(0, 10)}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Export CSV
           </Button>
-        )}
+          {canManage && (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Property
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter chips */}

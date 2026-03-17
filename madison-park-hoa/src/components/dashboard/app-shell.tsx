@@ -11,11 +11,11 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 
 export function AppShell({
   user,
-  notificationCount,
+  userId,
   children,
 }: {
   user: SidebarUser
-  notificationCount: number
+  userId: string
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -50,7 +50,7 @@ export function AppShell({
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
           user={user}
-          notificationCount={notificationCount}
+          userId={userId}
           onMenuClick={() => setSheetOpen(true)}
         />
 

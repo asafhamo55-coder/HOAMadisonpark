@@ -26,7 +26,7 @@ export function MobileNav({ onMoreClick }: { onMoreClick: () => void }) {
               <button
                 key={item.href}
                 onClick={onMoreClick}
-                className="flex flex-col items-center gap-1 px-2 py-1 text-muted-foreground"
+                className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 px-3 py-1 text-muted-foreground active:bg-muted/50"
               >
                 <item.icon className="h-5 w-5" />
                 <span className="text-[10px]">{item.title}</span>
@@ -43,7 +43,7 @@ export function MobileNav({ onMoreClick }: { onMoreClick: () => void }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-2 py-1",
+                "flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 px-3 py-1 active:bg-muted/50",
                 isActive
                   ? "text-sidebar-accent"
                   : "text-muted-foreground"

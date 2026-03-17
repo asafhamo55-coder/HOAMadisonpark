@@ -10,6 +10,7 @@ import {
   XCircle,
   Clock,
   Send,
+  Printer,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -178,10 +179,32 @@ export function LettersTab({
             </DialogDescription>
           </DialogHeader>
           {viewLetter && (
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: viewLetter.body_html }}
-            />
+            <>
+              <div
+                id="print-letter-content"
+                className="prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: viewLetter.body_html }}
+              />
+              <div className="flex justify-end border-t pt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const el = document.getElementById("print-letter-content")
+                    if (!el) return
+                    const w = window.open("", "_blank")
+                    if (!w) return
+                    w.document.write(`<!DOCTYPE html><html><head><title>${viewLetter.subject || "Letter"}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:2rem;color:#333;max-width:800px;margin:0 auto;line-height:1.6}@media print{body{padding:0}}</style></head><body>${el.innerHTML}</body></html>`)
+                    w.document.close()
+                    w.focus()
+                    w.print()
+                  }}
+                >
+                  <Printer className="mr-1.5 h-3.5 w-3.5" />
+                  Print Letter
+                </Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

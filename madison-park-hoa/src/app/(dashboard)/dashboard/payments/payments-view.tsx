@@ -11,6 +11,7 @@ import {
   Ban,
   Zap,
   Search,
+  Download,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -107,6 +108,43 @@ export function PaymentsView({
     })
   }, [payments, statusFilter, periodFilter, streetFilter, searchQuery])
 
+  function exportPaymentsCsv() {
+    const rows = filtered.map((p) => ({
+      Property: p.properties?.address || "",
+      Resident: p.residents?.full_name || "",
+      Period: p.period || "",
+      Amount: Number(p.amount).toFixed(2),
+      "Due Date": p.due_date || "",
+      "Paid Date": p.paid_date || "",
+      Method: p.payment_method || "",
+      Status: p.status,
+      Notes: p.notes || "",
+    }))
+    if (rows.length === 0) return
+    const headers = Object.keys(rows[0])
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers
+          .map((h) => {
+            const val = row[h as keyof typeof row]
+            const str = String(val ?? "")
+            return str.includes(",") || str.includes('"')
+              ? `"${str.replace(/"/g, '""')}"`
+              : str
+          })
+          .join(",")
+      ),
+    ]
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function handleSendReminders() {
     setReminderLoading(true)
     setReminderResult(null)
@@ -123,7 +161,11 @@ export function PaymentsView({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Payments</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={exportPaymentsCsv}>
+            <Download className="mr-1 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -263,8 +305,8 @@ export function PaymentsView({
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card>
+      {/* Desktop Table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -325,7 +367,7 @@ export function PaymentsView({
                                 setSelectedPayment(p)
                                 setShowWaiveModal(true)
                               }}
-                              className="text-xs text-gray-500 hover:text-red-600"
+                              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-gray-500 hover:text-red-600"
                               title="Waive payment"
                             >
                               <Ban className="h-4 w-4" />
@@ -341,6 +383,74 @@ export function PaymentsView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Card View */}
+      <div className="space-y-3 md:hidden">
+        {filtered.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No payments found.
+            </CardContent>
+          </Card>
+        ) : (
+          filtered.map((p) => {
+            const badge = STATUS_BADGE[p.status] || STATUS_BADGE.pending
+            return (
+              <Card key={p.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">
+                        {p.properties?.address || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.residents?.full_name || "—"}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Amount: </span>
+                      <span className="font-medium">{formatCurrency(Number(p.amount))}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Period: </span>
+                      <span>{p.period || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Due: </span>
+                      <span>{formatDate(p.due_date)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Paid: </span>
+                      <span>{formatDate(p.paid_date)}</span>
+                    </div>
+                  </div>
+                  {(p.status === "pending" || p.status === "overdue") && (
+                    <div className="mt-3 border-t pt-2">
+                      <button
+                        onClick={() => {
+                          setSelectedPayment(p)
+                          setShowWaiveModal(true)
+                        }}
+                        className="min-h-[44px] flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-600"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        Waive Payment
+                      </button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })
+        )}
+      </div>
 
       {/* Record Payment Modal */}
       <RecordPaymentModal
