@@ -15,7 +15,6 @@ import {
   type ColumnFiltersState,
 } from "@tanstack/react-table"
 import {
-  AlertTriangle,
   Search,
   Plus,
   Download,
@@ -38,7 +37,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
@@ -68,10 +66,10 @@ import type {
   ResidentOption,
 } from "./page-data"
 import {
-  createViolation,
-  resolveViolation,
-  addFineToViolation,
-} from "./actions"
+  resolveViolationAction,
+  addFineAction,
+} from "@/app/actions/violations"
+import { LogViolationModal } from "@/components/violations/log-violation-modal"
 
 // ── Config maps ──────────────────────────────────────────────
 
@@ -108,18 +106,6 @@ const severityColors: Record<string, string> = {
   medium: "bg-amber-500/10 text-amber-700 border-amber-500/20",
   high: "bg-red-500/10 text-red-700 border-red-500/20",
 }
-
-const CATEGORIES = [
-  "Landscaping",
-  "Parking",
-  "Noise",
-  "Trash",
-  "Exterior",
-  "Pets",
-  "Signage",
-  "Structure",
-  "Other",
-]
 
 // ── Column helper ────────────────────────────────────────────
 
@@ -708,7 +694,7 @@ export function ViolationsView({
       </div>
 
       {/* Create Violation Modal */}
-      <CreateViolationDialog
+      <LogViolationModal
         open={createOpen}
         onOpenChange={setCreateOpen}
         properties={properties}
@@ -785,7 +771,7 @@ function ResolveButton({ violationId }: { violationId: string }) {
 
   async function handleResolve() {
     setLoading(true)
-    const result = await resolveViolation(violationId)
+    const result = await resolveViolationAction(violationId)
     if (result.error) {
       toast.error(result.error)
     } else {
@@ -811,166 +797,6 @@ function ResolveButton({ violationId }: { violationId: string }) {
   )
 }
 
-function CreateViolationDialog({
-  open,
-  onOpenChange,
-  properties,
-  residents,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  properties: PropertyOption[]
-  residents: ResidentOption[]
-}) {
-  const [loading, setLoading] = useState(false)
-  const [propertyId, setPropertyId] = useState("")
-  const [severity, setSeverity] = useState("medium")
-  const [category, setCategory] = useState("")
-
-  const propertyResidents = residents.filter(
-    (r) => r.property_id === propertyId
-  )
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setLoading(true)
-    const formData = new FormData(e.currentTarget)
-    formData.set("property_id", propertyId)
-    formData.set("severity", severity)
-    formData.set("category", category)
-
-    const result = await createViolation(formData)
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      toast.success("Violation logged")
-      onOpenChange(false)
-      setPropertyId("")
-      setCategory("")
-      setSeverity("medium")
-    }
-    setLoading(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Log New Violation
-            </span>
-          </DialogTitle>
-          <DialogDescription>
-            Record a new violation against a property.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Property *</Label>
-              <Select value={propertyId} onValueChange={setPropertyId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select property..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.address}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {propertyResidents.length > 0 && (
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="resident_id">Resident</Label>
-                <select
-                  id="resident_id"
-                  name="resident_id"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select resident...</option>
-                  {propertyResidents.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>Category *</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Severity *</Label>
-              <Select value={severity} onValueChange={setSeverity}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                name="description"
-                placeholder="Describe the violation..."
-                required
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="due_date">Due Date</Label>
-              <Input id="due_date" name="due_date" type="date" />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading || !propertyId || !category}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Log Violation
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function AddFineDialog({
   violation,
   onClose,
@@ -986,7 +812,7 @@ function AddFineDialog({
     if (!violation) return
     setLoading(true)
 
-    const result = await addFineToViolation(
+    const result = await addFineAction(
       violation.id,
       parseFloat(amount)
     )
