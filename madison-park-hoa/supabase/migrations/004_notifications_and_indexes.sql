@@ -87,19 +87,20 @@ create trigger trg_notify_violation
   after insert on public.violations
   for each row execute function public.notify_on_violation();
 
--- Notify when a fine is added (letter with fine_amount)
+-- Notify when a fine is added to a violation
 create or replace function public.notify_on_fine()
 returns trigger as $$
 declare
   v_resident record;
   v_address  text;
 begin
-  if NEW.fine_amount is not null and NEW.fine_amount > 0 then
+  -- Only fire when fine_amount is set and was previously null or zero
+  if NEW.fine_amount is not null and NEW.fine_amount > 0
+     and (OLD.fine_amount is null or OLD.fine_amount = 0) then
     select r.profile_id, p.address into v_resident, v_address
     from public.residents r
     join public.properties p on p.id = r.property_id
-    join public.violations v on v.id = NEW.violation_id
-    where r.property_id = v.property_id
+    where r.property_id = NEW.property_id
       and r.is_current = true
     limit 1;
 
@@ -120,7 +121,7 @@ end;
 $$ language plpgsql security definer;
 
 create trigger trg_notify_fine
-  after insert on public.letters
+  after update on public.violations
   for each row execute function public.notify_on_fine();
 
 -- Notify when payment becomes overdue
