@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { format } from "date-fns"
 import {
   Mail,
@@ -23,7 +22,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import type { Letter } from "../detail-data"
+import { EmailComposer } from "@/components/email/email-composer"
+import type { Letter, Resident, Violation } from "../detail-data"
 
 const statusIcons: Record<string, { icon: typeof CheckCircle2; color: string }> = {
   draft: { icon: Clock, color: "text-gray-500" },
@@ -38,19 +38,46 @@ const typeLabels: Record<string, string> = {
   fine: "Fine Notice",
   welcome: "Welcome Letter",
   announcement: "Announcement",
+  payment_reminder: "Payment Reminder",
   custom: "Custom",
 }
 
 export function LettersTab({
   propertyId,
+  propertyAddress,
   letters,
+  residents,
+  violations,
   canManage,
 }: {
   propertyId: string
+  propertyAddress: string
   letters: Letter[]
+  residents: Resident[]
+  violations: Violation[]
   canManage: boolean
 }) {
   const [viewLetter, setViewLetter] = useState<Letter | null>(null)
+  const [composerOpen, setComposerOpen] = useState(false)
+
+  // Map residents to the shape the composer expects
+  const composerResidents = residents.map((r) => ({
+    id: r.id,
+    full_name: r.full_name,
+    email: r.email,
+    property_id: r.property_id,
+  }))
+
+  const composerViolations = violations.map((v) => ({
+    id: v.id,
+    category: v.category,
+    description: v.description,
+    severity: v.severity,
+    reported_date: v.reported_date,
+    due_date: v.due_date,
+    fine_amount: v.fine_amount,
+    property_id: v.property_id,
+  }))
 
   return (
     <div className="space-y-4">
@@ -59,12 +86,10 @@ export function LettersTab({
           Correspondence ({letters.length})
         </h3>
         {canManage && (
-          <Link href={`/dashboard/email?property=${propertyId}`}>
-            <Button size="sm">
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Send New Letter
-            </Button>
-          </Link>
+          <Button size="sm" onClick={() => setComposerOpen(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Send New Letter
+          </Button>
         )}
       </div>
 
@@ -160,6 +185,16 @@ export function LettersTab({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Email Composer Modal */}
+      <EmailComposer
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+        defaultPropertyId={propertyId}
+        properties={[{ id: propertyId, address: propertyAddress }]}
+        residents={composerResidents}
+        violations={composerViolations}
+      />
     </div>
   )
 }

@@ -97,7 +97,10 @@ export function PropertyDetailView({
             <TabsContent value="letters" className="mt-4">
               <LettersTab
                 propertyId={data.property.id}
+                propertyAddress={data.property.address}
                 letters={data.letters}
+                residents={data.currentResidents}
+                violations={data.violations}
                 canManage={canManage}
               />
             </TabsContent>
