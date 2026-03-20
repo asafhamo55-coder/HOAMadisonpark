@@ -57,11 +57,11 @@ create index if not exists idx_payments_status on public.payments(status);
 create or replace function public.notify_on_violation()
 returns trigger as $$
 declare
-  v_resident record;
-  v_address  text;
+  v_profile_id uuid;
+  v_address    text;
 begin
   -- Get current resident's profile_id for this property
-  select r.profile_id, p.address into v_resident, v_address
+  select r.profile_id, p.address into v_profile_id, v_address
   from public.residents r
   join public.properties p on p.id = r.property_id
   where r.property_id = NEW.property_id
@@ -71,7 +71,7 @@ begin
   if v_resident.profile_id is not null then
     insert into public.notifications (user_id, type, title, body, link_url)
     values (
-      v_resident.profile_id,
+      v_profile_id,
       'violation',
       'New Violation Logged',
       'A ' || coalesce(NEW.category, 'violation') || ' violation has been logged for ' || coalesce(v_address, 'your property') || '.',
@@ -91,23 +91,23 @@ create trigger trg_notify_violation
 create or replace function public.notify_on_fine()
 returns trigger as $$
 declare
-  v_resident record;
-  v_address  text;
+v_profile_id uuid;
+  v_address    text;
 begin
   -- Only fire when fine_amount is set and was previously null or zero
   if NEW.fine_amount is not null and NEW.fine_amount > 0
      and (OLD.fine_amount is null or OLD.fine_amount = 0) then
-    select r.profile_id, p.address into v_resident, v_address
+    select r.profile_id, p.address into v_profile_id, v_address
     from public.residents r
     join public.properties p on p.id = r.property_id
     where r.property_id = NEW.property_id
       and r.is_current = true
     limit 1;
 
-    if v_resident.profile_id is not null then
+    if v_profile_id is not null then
       insert into public.notifications (user_id, type, title, body, link_url)
       values (
-        v_resident.profile_id,
+        v_profile_id,
         'fine',
         'Fine Issued: $' || NEW.fine_amount::text,
         'A fine of $' || NEW.fine_amount::text || ' has been issued for ' || coalesce(v_address, 'your property') || '.',
@@ -137,10 +137,10 @@ begin
       and r.is_current = true
     limit 1;
 
-    if v_resident.profile_id is not null then
+    if v_profile_id is not null then
       insert into public.notifications (user_id, type, title, body, link_url)
       values (
-        v_resident.profile_id,
+        v_profile_id,
         'payment',
         'Payment Overdue',
         'Your HOA dues payment of $' || NEW.amount::text || ' for ' || coalesce(NEW.period, 'this period') || ' is now overdue.',
