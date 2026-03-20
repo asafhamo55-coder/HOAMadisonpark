@@ -28,24 +28,32 @@ export async function addPropertyAction(input: AddPropertyInput) {
 
   const supabase = createClient()
 
+  const payload = {
+    address: input.address.trim(),
+    lot_number: input.lot_number?.trim() || null,
+    street: input.street?.trim() || null,
+    unit: input.unit?.trim() || null,
+    zip: input.zip?.trim() || "30022",
+    city: input.city?.trim() || "Johns Creek",
+    state: input.state?.trim() || "GA",
+    status: input.status,
+    notes: input.notes?.trim() || null,
+  }
+
   const { data, error } = await supabase
     .from("properties")
-    .insert({
-      address: input.address.trim(),
-      lot_number: input.lot_number?.trim() || null,
-      street: input.street?.trim() || null,
-      unit: input.unit?.trim() || null,
-      zip: input.zip?.trim() || "30022",
-      city: input.city?.trim() || "Johns Creek",
-      state: input.state?.trim() || "GA",
-      status: input.status,
-      notes: input.notes?.trim() || null,
-    })
+    .insert(payload)
     .select("id")
     .single()
 
   if (error) {
+    console.error("[addPropertyAction] Supabase error:", error)
     return { error: error.message }
+  }
+
+  if (!data) {
+    console.error("[addPropertyAction] No data returned – possible RLS denial")
+    return { error: "Failed to create property. Please check your permissions." }
   }
 
   revalidatePath("/dashboard/properties")
