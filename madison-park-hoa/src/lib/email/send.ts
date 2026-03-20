@@ -11,7 +11,7 @@ import {
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 const FROM_ADDRESS =
-  process.env.EMAIL_FROM || "Madison Park HOA <noreply@madisonparkhoa.com>"
+  process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
 
 interface SendEmailOptions<T extends TemplateName> {
   to: string | string[]
