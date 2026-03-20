@@ -4,10 +4,14 @@ export type Resident = {
   id: string
   property_id: string
   profile_id: string | null
+  first_name: string | null
+  last_name: string | null
   full_name: string
   email: string | null
   phone: string | null
+  relationship: string
   type: "owner" | "tenant" | "co-owner"
+  status: "active" | "former"
   move_in_date: string | null
   move_out_date: string | null
   is_current: boolean
@@ -17,6 +21,7 @@ export type Resident = {
   pets: string[] | null
   notes: string | null
   created_at: string
+  updated_at: string | null
 }
 
 export type Violation = {
@@ -74,15 +79,20 @@ export type Payment = {
 export type Property = {
   id: string
   address: string
+  address_line1: string | null
+  address_line2: string | null
   lot_number: string | null
   street: string | null
   unit: string | null
   zip: string | null
   city: string | null
   state: string | null
+  country: string | null
+  property_type: string | null
   status: "occupied" | "vacant" | "foreclosure" | "rental"
   notes: string | null
   created_at: string
+  updated_at: string | null
 }
 
 export type PropertyDetail = {
@@ -107,7 +117,7 @@ export async function getPropertyDetail(
         .from("residents")
         .select("*")
         .eq("property_id", id)
-        .order("is_current", { ascending: false })
+        .order("status", { ascending: true })
         .order("move_in_date", { ascending: false }),
 
       supabase
@@ -179,8 +189,8 @@ export async function getPropertyDetail(
 
   return {
     property: propertyRes.data as Property,
-    currentResidents: residents.filter((r) => r.is_current),
-    formerResidents: residents.filter((r) => !r.is_current),
+    currentResidents: residents.filter((r) => r.status === "active"),
+    formerResidents: residents.filter((r) => r.status === "former"),
     violations,
     letters,
     payments: (paymentsRes.data || []) as Payment[],

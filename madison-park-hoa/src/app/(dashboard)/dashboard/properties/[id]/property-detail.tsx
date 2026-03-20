@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ResidentsTab } from "./tabs/residents-tab"
 import { ViolationsTab } from "./tabs/violations-tab"
@@ -13,6 +14,14 @@ import { NotesTab } from "./tabs/notes-tab"
 import { SidebarPanel } from "./sidebar-panel"
 import type { PropertyDetail } from "./detail-data"
 
+const propertyTypeColors: Record<string, string> = {
+  "Single Family": "bg-blue-500/10 text-blue-700 border-blue-500/20",
+  Townhouse: "bg-purple-500/10 text-purple-700 border-purple-500/20",
+  Condo: "bg-teal-500/10 text-teal-700 border-teal-500/20",
+  Apartment: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+  Other: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+}
+
 export function PropertyDetailView({
   data,
   canManage,
@@ -20,6 +29,8 @@ export function PropertyDetailView({
   data: PropertyDetail
   canManage: boolean
 }) {
+  const displayAddress = data.property.address_line1 || data.property.address
+
   return (
     <div className="space-y-4">
       {/* Back link + Title */}
@@ -30,10 +41,23 @@ export function PropertyDetailView({
           </Button>
         </Link>
         <div>
-          <h2 className="text-xl font-bold">{data.property.address}</h2>
-          {data.property.unit && (
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold">{displayAddress}</h2>
+            {data.property.property_type && (
+              <Badge
+                variant="outline"
+                className={
+                  propertyTypeColors[data.property.property_type] ||
+                  propertyTypeColors.Other
+                }
+              >
+                {data.property.property_type}
+              </Badge>
+            )}
+          </div>
+          {data.property.address_line2 && (
             <p className="text-sm text-muted-foreground">
-              Unit {data.property.unit}
+              {data.property.address_line2}
             </p>
           )}
         </div>

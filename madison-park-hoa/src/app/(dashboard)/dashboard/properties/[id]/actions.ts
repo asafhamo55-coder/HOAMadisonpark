@@ -36,31 +36,28 @@ export async function updatePropertyNotes(
 export async function addResident(formData: FormData) {
   const supabase = createClient()
 
+  const firstName = formData.get("first_name") as string
+  const lastName = formData.get("last_name") as string
+
   const data = {
     property_id: formData.get("property_id") as string,
-    full_name: formData.get("full_name") as string,
+    first_name: firstName,
+    last_name: lastName,
+    full_name: `${firstName} ${lastName}`.trim(),
     email: (formData.get("email") as string) || null,
     phone: (formData.get("phone") as string) || null,
-    type: (formData.get("type") as string) || "owner",
+    relationship: (formData.get("relationship") as string) || "Primary Owner",
+    type: mapRelationshipToType(formData.get("relationship") as string),
     move_in_date: (formData.get("move_in_date") as string) || null,
     is_current: true,
-    vehicles: formData.get("vehicles")
-      ? (formData.get("vehicles") as string)
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean)
-      : null,
-    pets: formData.get("pets")
-      ? (formData.get("pets") as string)
-          .split(",")
-          .map((p) => p.trim())
-          .filter(Boolean)
-      : null,
+    status: "active",
+    notes: (formData.get("notes") as string) || null,
   }
 
   const { error } = await supabase.from("residents").insert(data)
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/properties/${data.property_id}`)
+  revalidatePath("/dashboard/properties")
   return { error: null }
 }
 
@@ -71,24 +68,19 @@ export async function updateResident(
 ) {
   const supabase = createClient()
 
+  const firstName = formData.get("first_name") as string
+  const lastName = formData.get("last_name") as string
+
   const data = {
-    full_name: formData.get("full_name") as string,
+    first_name: firstName,
+    last_name: lastName,
+    full_name: `${firstName} ${lastName}`.trim(),
     email: (formData.get("email") as string) || null,
     phone: (formData.get("phone") as string) || null,
-    type: (formData.get("type") as string) || "owner",
+    relationship: (formData.get("relationship") as string) || "Primary Owner",
+    type: mapRelationshipToType(formData.get("relationship") as string),
     move_in_date: (formData.get("move_in_date") as string) || null,
-    vehicles: formData.get("vehicles")
-      ? (formData.get("vehicles") as string)
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean)
-      : null,
-    pets: formData.get("pets")
-      ? (formData.get("pets") as string)
-          .split(",")
-          .map((p) => p.trim())
-          .filter(Boolean)
-      : null,
+    notes: (formData.get("notes") as string) || null,
   }
 
   const { error } = await supabase
@@ -97,6 +89,30 @@ export async function updateResident(
     .eq("id", residentId)
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/properties/${propertyId}`)
+  revalidatePath("/dashboard/properties")
+  return { error: null }
+}
+
+export async function moveOutResident(
+  residentId: string,
+  propertyId: string
+) {
+  const supabase = createClient()
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { error } = await supabase
+    .from("residents")
+    .update({
+      status: "former",
+      is_current: false,
+      move_out_date: today,
+    })
+    .eq("id", residentId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/properties/${propertyId}`)
+  revalidatePath("/dashboard/properties")
   return { error: null }
 }
 
@@ -119,4 +135,19 @@ export async function recordPayment(formData: FormData) {
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/properties/${data.property_id}`)
   return { error: null }
+}
+
+function mapRelationshipToType(relationship: string | null): string {
+  switch (relationship) {
+    case "Primary Owner":
+      return "owner"
+    case "Co-Owner":
+      return "co-owner"
+    case "Tenant":
+      return "tenant"
+    case "Spouse":
+      return "owner"
+    default:
+      return "owner"
+  }
 }

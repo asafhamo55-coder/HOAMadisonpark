@@ -5,12 +5,10 @@ import Link from "next/link"
 import {
   Search,
   Plus,
-  Eye,
-  AlertTriangle,
-  Mail,
+  Pencil,
   Users,
-  CreditCard,
   Download,
+  Home,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -41,25 +39,21 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "payment_overdue", label: "Payment Overdue" },
 ]
 
-const statusConfig: Record<
-  string,
-  { label: string; className: string }
-> = {
-  occupied: {
-    label: "Occupied",
-    className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  },
-  vacant: {
-    label: "Vacant",
-    className: "bg-gray-500/10 text-gray-600 border-gray-500/20",
-  },
-  rental: {
-    label: "Rental",
+const propertyTypeConfig: Record<string, { className: string }> = {
+  "Single Family": {
     className: "bg-blue-500/10 text-blue-700 border-blue-500/20",
   },
-  foreclosure: {
-    label: "Foreclosure",
-    className: "bg-red-500/10 text-red-700 border-red-500/20",
+  Townhouse: {
+    className: "bg-purple-500/10 text-purple-700 border-purple-500/20",
+  },
+  Condo: {
+    className: "bg-teal-500/10 text-teal-700 border-teal-500/20",
+  },
+  Apartment: {
+    className: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+  },
+  Other: {
+    className: "bg-gray-500/10 text-gray-600 border-gray-500/20",
   },
 }
 
@@ -73,26 +67,27 @@ export function PropertiesGrid({
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all")
   const [addOpen, setAddOpen] = useState(false)
+  const [editProperty, setEditProperty] = useState<PropertyWithSummary | null>(null)
 
   const canManage = userRole === "admin" || userRole === "board"
 
   const filtered = useMemo(() => {
     let result = properties
 
-    // Search filter
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
         (p) =>
           p.address.toLowerCase().includes(q) ||
+          (p.address_line1 && p.address_line1.toLowerCase().includes(q)) ||
           (p.lot_number && p.lot_number.toLowerCase().includes(q)) ||
+          (p.city && p.city.toLowerCase().includes(q)) ||
           p.currentResidents.some((r) =>
             r.full_name.toLowerCase().includes(q)
           )
       )
     }
 
-    // Status / condition filter
     switch (activeFilter) {
       case "occupied":
         result = result.filter((p) => p.status === "occupied")
@@ -111,6 +106,15 @@ export function PropertiesGrid({
     return result
   }, [properties, search, activeFilter])
 
+  function formatAddress(p: PropertyWithSummary) {
+    const line1 = p.address_line1 || p.address
+    const parts = [line1]
+    if (p.address_line2) parts.push(p.address_line2)
+    const cityLine = `${p.city || "Johns Creek"}, ${p.state || "GA"} ${p.zip || "30022"}`
+    parts.push(cityLine)
+    return parts.join(", ")
+  }
+
   return (
     <div className="space-y-6">
       {/* Toolbar */}
@@ -118,7 +122,7 @@ export function PropertiesGrid({
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search address, resident, lot..."
+            placeholder="Search address, resident name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -131,7 +135,8 @@ export function PropertiesGrid({
             size="sm"
             onClick={() => {
               const rows = filtered.map((p) => ({
-                Address: p.address,
+                Address: formatAddress(p),
+                "Property Type": p.property_type || "",
                 "Lot #": p.lot_number || "",
                 Status: p.status,
                 Residents: p.currentResidents.map((r) => r.full_name).join("; "),
@@ -164,7 +169,7 @@ export function PropertiesGrid({
           {canManage && (
             <Button onClick={() => setAddOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Property
+              New Property
             </Button>
           )}
         </div>
@@ -224,6 +229,8 @@ export function PropertiesGrid({
               key={property.id}
               property={property}
               canManage={canManage}
+              formatAddress={formatAddress}
+              onEdit={() => setEditProperty(property)}
             />
           ))}
         </div>
@@ -231,6 +238,29 @@ export function PropertiesGrid({
 
       {/* Add Property Modal */}
       <AddPropertyModal open={addOpen} onOpenChange={setAddOpen} />
+
+      {/* Edit Property Modal */}
+      {editProperty && (
+        <AddPropertyModal
+          open={!!editProperty}
+          onOpenChange={(open) => {
+            if (!open) setEditProperty(null)
+          }}
+          editData={{
+            id: editProperty.id,
+            address_line1: editProperty.address_line1,
+            address_line2: editProperty.address_line2,
+            city: editProperty.city,
+            state: editProperty.state,
+            zip: editProperty.zip,
+            country: editProperty.country,
+            property_type: editProperty.property_type,
+            status: editProperty.status,
+            lot_number: editProperty.lot_number,
+            notes: editProperty.notes,
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -238,39 +268,39 @@ export function PropertiesGrid({
 function PropertyCard({
   property,
   canManage,
+  formatAddress,
+  onEdit,
 }: {
   property: PropertyWithSummary
   canManage: boolean
+  formatAddress: (p: PropertyWithSummary) => string
+  onEdit: () => void
 }) {
-  const status = statusConfig[property.status] || statusConfig.occupied
+  const typeConfig = propertyTypeConfig[property.property_type || "Other"] ||
+    propertyTypeConfig.Other
+
+  const residentNames = property.currentResidents
+    .map((r) => r.full_name)
+    .join(", ")
 
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base font-bold leading-tight">
-              {property.address}
-            </h3>
-            {property.unit && (
-              <p className="text-sm text-muted-foreground">
-                Unit {property.unit}
-              </p>
-            )}
+            <div className="flex items-center gap-2">
+              <Home className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <h3 className="truncate text-base font-bold leading-tight">
+                {formatAddress(property)}
+              </h3>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {property.lot_number && (
-              <Badge variant="secondary" className="text-[10px]">
-                Lot {property.lot_number}
-              </Badge>
-            )}
-            <Badge
-              variant="outline"
-              className={cn("text-[10px]", status.className)}
-            >
-              {status.label}
-            </Badge>
-          </div>
+          <Badge
+            variant="outline"
+            className={cn("shrink-0 text-[10px]", typeConfig.className)}
+          >
+            {property.property_type || "Other"}
+          </Badge>
         </div>
       </CardHeader>
 
@@ -279,76 +309,41 @@ function PropertyCard({
         <div className="flex items-start gap-2">
           <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 text-sm">
-            {property.currentResidents.length > 0 ? (
-              property.currentResidents.map((r) => (
-                <p key={r.id} className="truncate">
-                  <span className="font-medium">{r.full_name}</span>
-                  <span className="ml-1 text-muted-foreground">
-                    ({r.type})
-                  </span>
-                </p>
-              ))
-            ) : (
+            <span className="font-medium">
+              {property.currentResidents.length} resident
+              {property.currentResidents.length !== 1 ? "s" : ""}
+            </span>
+            {residentNames && (
+              <p className="truncate text-muted-foreground">{residentNames}</p>
+            )}
+            {property.currentResidents.length === 0 && (
               <p className="text-muted-foreground">No current residents</p>
             )}
           </div>
         </div>
-
-        {/* Counts */}
-        <div className="flex gap-4 text-sm">
-          {property.openViolations > 0 && (
-            <div className="flex items-center gap-1 text-red-600">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <span className="font-medium">
-                {property.openViolations} violation
-                {property.openViolations !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-          {property.overduePayments > 0 && (
-            <div className="flex items-center gap-1 text-amber-600">
-              <CreditCard className="h-3.5 w-3.5" />
-              <span className="font-medium">
-                {property.overduePayments} overdue
-              </span>
-            </div>
-          )}
-          {property.openViolations === 0 &&
-            property.overduePayments === 0 && (
-              <p className="text-muted-foreground">No issues</p>
-            )}
-        </div>
       </CardContent>
 
       <CardFooter className="gap-2 border-t pt-3">
-        <Link href={`/dashboard/properties/${property.id}`} className="flex-1">
+        {canManage && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={onEdit}
+          >
+            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+            Edit Property
+          </Button>
+        )}
+        <Link
+          href={`/dashboard/properties/${property.id}`}
+          className="flex-1"
+        >
           <Button variant="outline" size="sm" className="w-full">
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-            View
+            <Users className="mr-1.5 h-3.5 w-3.5" />
+            Manage Residents
           </Button>
         </Link>
-        {canManage && (
-          <>
-            <Link
-              href={`/dashboard/violations?property=${property.id}`}
-              className="flex-1"
-            >
-              <Button variant="outline" size="sm" className="w-full">
-                <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
-                Violation
-              </Button>
-            </Link>
-            <Link
-              href={`/dashboard/email?property=${property.id}`}
-              className="flex-1"
-            >
-              <Button variant="outline" size="sm" className="w-full">
-                <Mail className="mr-1.5 h-3.5 w-3.5" />
-                Email
-              </Button>
-            </Link>
-          </>
-        )}
       </CardFooter>
     </Card>
   )

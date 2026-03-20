@@ -7,11 +7,10 @@ import {
   Pencil,
   Phone,
   Mail,
-  Car,
-  PawPrint,
   ChevronDown,
   User,
   Loader2,
+  LogOut,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -20,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -41,12 +41,22 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import type { Resident } from "../detail-data"
-import { addResident, updateResident } from "../actions"
+import { addResident, updateResident, moveOutResident } from "../actions"
 
-const typeColors: Record<string, string> = {
-  owner: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  tenant: "bg-blue-500/10 text-blue-700 border-blue-500/20",
-  "co-owner": "bg-purple-500/10 text-purple-700 border-purple-500/20",
+const RELATIONSHIPS = [
+  "Primary Owner",
+  "Co-Owner",
+  "Spouse",
+  "Tenant",
+  "Other",
+]
+
+const relationshipColors: Record<string, string> = {
+  "Primary Owner": "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+  "Co-Owner": "bg-purple-500/10 text-purple-700 border-purple-500/20",
+  Spouse: "bg-pink-500/10 text-pink-700 border-pink-500/20",
+  Tenant: "bg-blue-500/10 text-blue-700 border-blue-500/20",
+  Other: "bg-gray-500/10 text-gray-600 border-gray-500/20",
 }
 
 export function ResidentsTab({
@@ -99,13 +109,13 @@ export function ResidentsTab({
         </div>
       )}
 
-      {/* Former Residents */}
+      {/* Resident History */}
       {formerResidents.length > 0 && (
         <Collapsible open={formerOpen} onOpenChange={setFormerOpen}>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="w-full justify-between">
               <span className="text-sm font-semibold">
-                Former Residents ({formerResidents.length})
+                Resident History ({formerResidents.length})
               </span>
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${formerOpen ? "rotate-180" : ""}`}
@@ -119,12 +129,16 @@ export function ResidentsTab({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{r.full_name}</span>
+                      <span className="font-medium">
+                        {r.first_name && r.last_name
+                          ? `${r.first_name} ${r.last_name}`
+                          : r.full_name}
+                      </span>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${typeColors[r.type] || ""}`}
+                        className={`text-[10px] ${relationshipColors[r.relationship] || relationshipColors.Other}`}
                       >
-                        {r.type}
+                        {r.relationship || r.type}
                       </Badge>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -168,6 +182,26 @@ function ResidentCard({
   onEdit: () => void
   onClose: () => void
 }) {
+  const [movingOut, setMovingOut] = useState(false)
+
+  async function handleMoveOut() {
+    if (!confirm("Are you sure you want to move out this resident? This will set their status to 'former' with today's date.")) {
+      return
+    }
+    setMovingOut(true)
+    const result = await moveOutResident(resident.id, propertyId)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success(`${resident.first_name || resident.full_name} has been moved out`)
+    }
+    setMovingOut(false)
+  }
+
+  const displayName = resident.first_name && resident.last_name
+    ? `${resident.first_name} ${resident.last_name}`
+    : resident.full_name
+
   return (
     <>
       <Card>
@@ -175,12 +209,12 @@ function ResidentCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold">{resident.full_name}</span>
+                <span className="font-semibold">{displayName}</span>
                 <Badge
                   variant="outline"
-                  className={`text-[10px] ${typeColors[resident.type] || ""}`}
+                  className={`text-[10px] ${relationshipColors[resident.relationship] || relationshipColors.Other}`}
                 >
-                  {resident.type}
+                  {resident.relationship || resident.type}
                 </Badge>
               </div>
 
@@ -204,34 +238,34 @@ function ResidentCard({
                   </span>
                 )}
               </div>
-
-              {(resident.vehicles?.length || resident.pets?.length) && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  {resident.vehicles && resident.vehicles.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <Car className="h-3 w-3" />
-                      {resident.vehicles.join(", ")}
-                    </span>
-                  )}
-                  {resident.pets && resident.pets.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <PawPrint className="h-3 w-3" />
-                      {resident.pets.join(", ")}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
 
             {canManage && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={onEdit}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onEdit}
+                  title="Edit resident"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  onClick={handleMoveOut}
+                  disabled={movingOut}
+                  title="Move out resident"
+                >
+                  {movingOut ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <LogOut className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>
@@ -264,13 +298,15 @@ function ResidentFormDialog({
   resident?: Resident
 }) {
   const [loading, setLoading] = useState(false)
-  const [resType, setResType] = useState<string>(resident?.type || "owner")
+  const [relationship, setRelationship] = useState<string>(
+    resident?.relationship || "Primary Owner"
+  )
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     const formData = new FormData(e.currentTarget)
-    formData.set("type", resType)
+    formData.set("relationship", relationship)
 
     let result
     if (resident) {
@@ -302,70 +338,86 @@ function ResidentFormDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="full_name">Full Name *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="first_name">
+                First Name <span className="text-red-500">*</span>
+              </Label>
               <Input
-                id="full_name"
-                name="full_name"
-                defaultValue={resident?.full_name}
+                id="first_name"
+                name="first_name"
+                defaultValue={resident?.first_name || ""}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="last_name">
+                Last Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="last_name"
+                name="last_name"
+                defaultValue={resident?.last_name || ""}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">
+                Phone Number <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="phone"
+                name="phone"
+                defaultValue={resident?.phone || ""}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                Email <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
                 defaultValue={resident?.email || ""}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                name="phone"
-                defaultValue={resident?.phone || ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={resType} onValueChange={setResType}>
+              <Label>Relationship</Label>
+              <Select value={relationship} onValueChange={setRelationship}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="owner">Owner</SelectItem>
-                  <SelectItem value="tenant">Tenant</SelectItem>
-                  <SelectItem value="co-owner">Co-Owner</SelectItem>
+                  {RELATIONSHIPS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="move_in_date">Move-in Date</Label>
+              <Label htmlFor="move_in_date">
+                Move-in Date <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="move_in_date"
                 name="move_in_date"
                 type="date"
                 defaultValue={resident?.move_in_date || ""}
+                required
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vehicles">Vehicles (comma-separated)</Label>
-              <Input
-                id="vehicles"
-                name="vehicles"
-                defaultValue={resident?.vehicles?.join(", ") || ""}
-                placeholder="ABC1234, XYZ5678"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="pets">Pets (comma-separated)</Label>
-              <Input
-                id="pets"
-                name="pets"
-                defaultValue={resident?.pets?.join(", ") || ""}
-                placeholder="Golden Retriever, Tabby Cat"
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                name="notes"
+                defaultValue={resident?.notes || ""}
+                placeholder="Optional notes about this resident..."
+                rows={3}
               />
             </div>
           </div>

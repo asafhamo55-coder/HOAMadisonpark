@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Hash,
+  Home,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -51,25 +52,20 @@ function computeComplianceScore(data: PropertyDetail): number {
   let score = 100
   const { violations, payments } = data
 
-  // Deduct for open/active violations
   const activeViolations = violations.filter(
     (v) => !["resolved", "dismissed"].includes(v.status)
   )
   score -= activeViolations.length * 15
 
-  // Deduct for high-severity violations
   const highSeverity = activeViolations.filter((v) => v.severity === "high")
   score -= highSeverity.length * 10
 
-  // Deduct for overdue payments
   const overduePayments = payments.filter((p) => p.status === "overdue")
   score -= overduePayments.length * 10
 
-  // Deduct for pending payments
   const pendingPayments = payments.filter((p) => p.status === "pending")
   score -= pendingPayments.length * 3
 
-  // Bonus for resolved violations
   const resolved = violations.filter((v) => v.status === "resolved")
   score += Math.min(resolved.length * 2, 10)
 
@@ -96,14 +92,13 @@ export function SidebarPanel({
   const score = computeComplianceScore(data)
   const scoreColor = getScoreColor(score)
 
-  const fullAddress = [
-    property.address,
-    property.unit ? `Unit ${property.unit}` : "",
+  const addressParts = [
+    property.address_line1 || property.address,
+    property.address_line2 || (property.unit ? `Unit ${property.unit}` : ""),
     `${property.city || "Johns Creek"}, ${property.state || "GA"} ${property.zip || "30022"}`,
-  ]
-    .filter(Boolean)
-    .join(", ")
+  ].filter(Boolean)
 
+  const fullAddress = addressParts.join(", ")
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
 
   const primaryEmail = currentResidents.find((r) => r.email)?.email
@@ -113,13 +108,12 @@ export function SidebarPanel({
     const result = await updatePropertyStatus(property.id, newStatus)
     if (result.error) {
       toast.error(result.error)
-      setStatus(property.status) // revert
+      setStatus(property.status)
     } else {
       toast.success("Status updated")
     }
   }
 
-  // SVG gauge
   const circumference = 2 * Math.PI * 40
   const dashOffset = circumference - (score / 100) * circumference
 
@@ -129,13 +123,19 @@ export function SidebarPanel({
       <div className="space-y-4 rounded-lg border bg-card p-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
             <span>{fullAddress}</span>
           </div>
           {property.lot_number && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Hash className="h-3.5 w-3.5" />
               <span>Lot {property.lot_number}</span>
+            </div>
+          )}
+          {property.property_type && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Home className="h-3.5 w-3.5" />
+              <span>{property.property_type}</span>
             </div>
           )}
         </div>

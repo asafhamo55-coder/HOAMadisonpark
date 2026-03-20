@@ -2,22 +2,30 @@ import { createClient } from "@/lib/supabase/server"
 
 export type ResidentSummary = {
   id: string
+  first_name: string | null
+  last_name: string | null
   full_name: string
-  type: "owner" | "tenant" | "co-owner"
+  relationship: string
+  status: string
 }
 
 export type PropertyWithSummary = {
   id: string
   address: string
+  address_line1: string | null
+  address_line2: string | null
   lot_number: string | null
   street: string | null
   unit: string | null
   zip: string | null
   city: string | null
   state: string | null
+  country: string | null
+  property_type: string | null
   status: "occupied" | "vacant" | "foreclosure" | "rental"
   notes: string | null
   created_at: string
+  updated_at: string | null
   currentResidents: ResidentSummary[]
   openViolations: number
   overduePayments: number
@@ -28,7 +36,6 @@ export async function getPropertiesWithSummary(): Promise<
 > {
   const supabase = createClient()
 
-  // Run all three queries in parallel
   const [propertiesResult, residentsResult, violationsResult, paymentsResult] =
     await Promise.all([
       supabase
@@ -38,8 +45,8 @@ export async function getPropertiesWithSummary(): Promise<
 
       supabase
         .from("residents")
-        .select("id, property_id, full_name, type")
-        .eq("is_current", true),
+        .select("id, property_id, first_name, last_name, full_name, relationship, status")
+        .eq("status", "active"),
 
       supabase
         .from("violations")
@@ -66,7 +73,14 @@ export async function getPropertiesWithSummary(): Promise<
   const residentsByProperty = new Map<string, ResidentSummary[]>()
   for (const r of residents) {
     const list = residentsByProperty.get(r.property_id) || []
-    list.push({ id: r.id, full_name: r.full_name, type: r.type })
+    list.push({
+      id: r.id,
+      first_name: r.first_name,
+      last_name: r.last_name,
+      full_name: r.full_name || `${r.first_name || ""} ${r.last_name || ""}`.trim(),
+      relationship: r.relationship || "Primary Owner",
+      status: r.status || "active",
+    })
     residentsByProperty.set(r.property_id, list)
   }
 
@@ -85,15 +99,20 @@ export async function getPropertiesWithSummary(): Promise<
   return properties.map((prop) => ({
     id: prop.id,
     address: prop.address,
+    address_line1: prop.address_line1,
+    address_line2: prop.address_line2,
     lot_number: prop.lot_number,
     street: prop.street,
     unit: prop.unit,
     zip: prop.zip,
     city: prop.city,
     state: prop.state,
+    country: prop.country,
+    property_type: prop.property_type,
     status: prop.status,
     notes: prop.notes,
     created_at: prop.created_at,
+    updated_at: prop.updated_at,
     currentResidents: residentsByProperty.get(prop.id) || [],
     openViolations: violationCounts.get(prop.id) || 0,
     overduePayments: paymentCounts.get(prop.id) || 0,
