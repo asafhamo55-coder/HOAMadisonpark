@@ -6,8 +6,11 @@ import { createClient } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
 
 function getResend() {
-  const key = process.env.RESEND_API_KEY
+  const key = process.env.RESEND_API_KEY?.trim()
   if (!key) throw new Error("RESEND_API_KEY is not set")
+  if (!key.startsWith("re_")) {
+    throw new Error(`RESEND_API_KEY has invalid format (starts with "${key.slice(0, 3)}...", expected "re_...")`)
+  }
   return new Resend(key)
 }
 

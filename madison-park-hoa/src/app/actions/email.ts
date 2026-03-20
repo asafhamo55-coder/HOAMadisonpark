@@ -12,8 +12,11 @@ import {
 } from "@/lib/email/templates"
 
 function getResend() {
-  const key = process.env.RESEND_API_KEY
+  const key = process.env.RESEND_API_KEY?.trim()
   if (!key) throw new Error("RESEND_API_KEY is not set")
+  if (!key.startsWith("re_")) {
+    throw new Error(`RESEND_API_KEY has invalid format (starts with "${key.slice(0, 3)}...", expected "re_...")`)
+  }
   return new Resend(key)
 }
 
@@ -44,12 +47,20 @@ export async function sendLetter({
   if (!user) return { error: "Unauthorized" }
 
   // Send via Resend
-  const { data: resendData, error: resendError } = await getResend().emails.send({
-    from: getFromAddress(),
-    to: [recipientEmail],
-    subject,
-    html: bodyHtml,
-  })
+  let resendData: { id: string } | null = null
+  let resendError: { message: string } | null = null
+  try {
+    const result = await getResend().emails.send({
+      from: getFromAddress(),
+      to: [recipientEmail],
+      subject,
+      html: bodyHtml,
+    })
+    resendData = result.data
+    resendError = result.error
+  } catch (err) {
+    return { error: `Email config error: ${(err as Error).message}` }
+  }
 
   if (resendError) {
     // Save as failed letter
@@ -158,13 +169,17 @@ export async function sendTestEmail(
   const user = await getCurrentUser()
   if (!user?.email) return { error: "No email on current user profile" }
 
-  const { data, error } = await getResend().emails.send({
-    from: getFromAddress(),
-    to: [user.email],
-    subject: `[TEST] ${subject}`,
-    html: bodyHtml,
-  })
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: getFromAddress(),
+      to: [user.email],
+      subject: `[TEST] ${subject}`,
+      html: bodyHtml,
+    })
 
-  if (error) return { error: error.message }
-  return { messageId: data?.id }
+    if (error) return { error: error.message }
+    return { messageId: data?.id }
+  } catch (err) {
+    return { error: `Email config error: ${(err as Error).message}` }
+  }
 }
