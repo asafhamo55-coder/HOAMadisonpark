@@ -11,10 +11,15 @@ import {
   type TemplateName,
 } from "@/lib/email/templates"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error("RESEND_API_KEY is not set")
+  return new Resend(key)
+}
 
-const FROM_ADDRESS =
-  process.env.EMAIL_FROM || "Madison Park HOA <noreply@madisonparkhoa.com>"
+function getFromAddress() {
+  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
+}
 
 export async function sendLetter({
   propertyId,
@@ -39,8 +44,8 @@ export async function sendLetter({
   if (!user) return { error: "Unauthorized" }
 
   // Send via Resend
-  const { data: resendData, error: resendError } = await resend.emails.send({
-    from: FROM_ADDRESS,
+  const { data: resendData, error: resendError } = await getResend().emails.send({
+    from: getFromAddress(),
     to: [recipientEmail],
     subject,
     html: bodyHtml,
@@ -153,8 +158,8 @@ export async function sendTestEmail(
   const user = await getCurrentUser()
   if (!user?.email) return { error: "No email on current user profile" }
 
-  const { data, error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+  const { data, error } = await getResend().emails.send({
+    from: getFromAddress(),
     to: [user.email],
     subject: `[TEST] ${subject}`,
     html: bodyHtml,

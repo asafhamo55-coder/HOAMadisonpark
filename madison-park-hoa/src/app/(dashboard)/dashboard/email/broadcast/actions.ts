@@ -5,9 +5,15 @@ import { Resend } from "resend"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM_ADDRESS =
-  process.env.EMAIL_FROM || "Madison Park HOA <noreply@madisonparkhoa.com>"
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error("RESEND_API_KEY is not set")
+  return new Resend(key)
+}
+
+function getFromAddress() {
+  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
+}
 
 export type BroadcastRecipient = {
   id: string
@@ -63,8 +69,8 @@ export async function sendBroadcast({
       .replace(/\{\{property_address\}\}/g, recipient.property_address)
       .replace(/\{\{hoa_name\}\}/g, "Madison Park HOA")
 
-    const { data, error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+    const { data, error } = await getResend().emails.send({
+      from: getFromAddress(),
       to: [recipient.email],
       subject: personalizedSubject,
       html: personalizedBody,

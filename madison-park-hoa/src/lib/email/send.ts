@@ -8,10 +8,15 @@ import {
   type TemplateMap,
 } from "./templates"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error("RESEND_API_KEY is not set")
+  return new Resend(key)
+}
 
-const FROM_ADDRESS =
-  process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
+function getFromAddress() {
+  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
+}
 
 interface SendEmailOptions<T extends TemplateName> {
   to: string | string[]
@@ -37,8 +42,8 @@ export async function sendEmail<T extends TemplateName>({
   const element = createElement(Component, props)
   const html = await render(element)
 
-  const { data, error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+  const { data, error } = await getResend().emails.send({
+    from: getFromAddress(),
     to: Array.isArray(to) ? to : [to],
     subject: emailSubject,
     html,
