@@ -309,7 +309,7 @@ export function AccountView({ data }: { data: AccountData }) {
           {data.resident.move_in_date && (
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              Since {new Date(data.resident.move_in_date).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              Since {new Date(data.resident.move_in_date).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
             </span>
           )}
         </div>

@@ -44,6 +44,7 @@ function formatDate(d: string) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "UTC",
   })
 }
 
@@ -376,6 +377,7 @@ function UserManagementTab({
                         month: "short",
                         day: "numeric",
                         year: "numeric",
+                        timeZone: "UTC",
                       })}
                     </td>
                     <td className="px-4 py-3">

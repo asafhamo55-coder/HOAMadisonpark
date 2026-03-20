@@ -18,7 +18,7 @@ function getResend() {
 }
 
 function getFromAddress() {
-  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <noreply@madisonparkhoa.com>"
+  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <onboarding@resend.dev>"
 }
 
 interface SendEmailOptions<T extends TemplateName> {

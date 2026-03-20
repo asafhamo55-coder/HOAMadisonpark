@@ -48,6 +48,7 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   })
 }
 

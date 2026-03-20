@@ -42,6 +42,7 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   })
 }
 
@@ -182,7 +183,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                           {n.body}
                         </p>
                       )}
-                      <p className="mt-1 text-[10px] text-muted-foreground">
+                      <p className="mt-1 text-[10px] text-muted-foreground" suppressHydrationWarning>
                         {timeAgo(n.created_at)}
                       </p>
                     </div>
