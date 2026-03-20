@@ -23,6 +23,7 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card"
+import { AddPropertyModal } from "@/components/properties/add-property-modal"
 import type { PropertyWithSummary } from "./page-data"
 
 type FilterKey =
@@ -71,6 +72,7 @@ export function PropertiesGrid({
 }) {
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all")
+  const [addOpen, setAddOpen] = useState(false)
 
   const canManage = userRole === "admin" || userRole === "board"
 
@@ -160,7 +162,7 @@ export function PropertiesGrid({
             Export CSV
           </Button>
           {canManage && (
-            <Button>
+            <Button onClick={() => setAddOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Property
             </Button>
@@ -226,6 +228,9 @@ export function PropertiesGrid({
           ))}
         </div>
       )}
+
+      {/* Add Property Modal */}
+      <AddPropertyModal open={addOpen} onOpenChange={setAddOpen} />
     </div>
   )
 }
