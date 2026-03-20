@@ -6,7 +6,7 @@ export type ResidentSummary = {
   last_name: string | null
   full_name: string
   relationship: string
-  status: string
+  type: string
 }
 
 export type PropertyWithSummary = {
@@ -36,6 +36,7 @@ export async function getPropertiesWithSummary(): Promise<
 > {
   const supabase = createClient()
 
+  // Use is_current (original column) for filtering — works before and after migration
   const [propertiesResult, residentsResult, violationsResult, paymentsResult] =
     await Promise.all([
       supabase
@@ -45,8 +46,8 @@ export async function getPropertiesWithSummary(): Promise<
 
       supabase
         .from("residents")
-        .select("id, property_id, first_name, last_name, full_name, relationship, status")
-        .eq("status", "active"),
+        .select("*")
+        .eq("is_current", true),
 
       supabase
         .from("violations")
@@ -75,11 +76,11 @@ export async function getPropertiesWithSummary(): Promise<
     const list = residentsByProperty.get(r.property_id) || []
     list.push({
       id: r.id,
-      first_name: r.first_name,
-      last_name: r.last_name,
-      full_name: r.full_name || `${r.first_name || ""} ${r.last_name || ""}`.trim(),
-      relationship: r.relationship || "Primary Owner",
-      status: r.status || "active",
+      first_name: r.first_name ?? null,
+      last_name: r.last_name ?? null,
+      full_name: r.full_name || `${r.first_name || ""} ${r.last_name || ""}`.trim() || "Unknown",
+      relationship: r.relationship || r.type || "Primary Owner",
+      type: r.type || "owner",
     })
     residentsByProperty.set(r.property_id, list)
   }
@@ -99,20 +100,20 @@ export async function getPropertiesWithSummary(): Promise<
   return properties.map((prop) => ({
     id: prop.id,
     address: prop.address,
-    address_line1: prop.address_line1,
-    address_line2: prop.address_line2,
+    address_line1: prop.address_line1 ?? prop.address,
+    address_line2: prop.address_line2 ?? prop.unit ?? null,
     lot_number: prop.lot_number,
     street: prop.street,
     unit: prop.unit,
     zip: prop.zip,
     city: prop.city,
     state: prop.state,
-    country: prop.country,
-    property_type: prop.property_type,
+    country: prop.country ?? "USA",
+    property_type: prop.property_type ?? "Single Family",
     status: prop.status,
     notes: prop.notes,
     created_at: prop.created_at,
-    updated_at: prop.updated_at,
+    updated_at: prop.updated_at ?? null,
     currentResidents: residentsByProperty.get(prop.id) || [],
     openViolations: violationCounts.get(prop.id) || 0,
     overduePayments: paymentCounts.get(prop.id) || 0,

@@ -104,6 +104,65 @@ export type PropertyDetail = {
   payments: Payment[]
 }
 
+// Normalize a raw DB row into our Resident type (works before and after migration)
+function normalizeResident(r: Record<string, unknown>): Resident {
+  const fullName = (r.full_name as string) || ""
+  return {
+    id: r.id as string,
+    property_id: r.property_id as string,
+    profile_id: (r.profile_id as string) ?? null,
+    first_name: (r.first_name as string) ?? null,
+    last_name: (r.last_name as string) ?? null,
+    full_name: fullName || `${(r.first_name as string) || ""} ${(r.last_name as string) || ""}`.trim() || "Unknown",
+    email: (r.email as string) ?? null,
+    phone: (r.phone as string) ?? null,
+    relationship: (r.relationship as string) || mapTypeToRelationship(r.type as string),
+    type: (r.type as "owner" | "tenant" | "co-owner") || "owner",
+    status: r.is_current === false ? "former" : ((r.status as "active" | "former") || "active"),
+    move_in_date: (r.move_in_date as string) ?? null,
+    move_out_date: (r.move_out_date as string) ?? null,
+    is_current: r.is_current as boolean ?? true,
+    emergency_contact_name: (r.emergency_contact_name as string) ?? null,
+    emergency_contact_phone: (r.emergency_contact_phone as string) ?? null,
+    vehicles: (r.vehicles as string[]) ?? null,
+    pets: (r.pets as string[]) ?? null,
+    notes: (r.notes as string) ?? null,
+    created_at: r.created_at as string,
+    updated_at: (r.updated_at as string) ?? null,
+  }
+}
+
+function mapTypeToRelationship(type: string | null): string {
+  switch (type) {
+    case "owner": return "Primary Owner"
+    case "co-owner": return "Co-Owner"
+    case "tenant": return "Tenant"
+    default: return "Primary Owner"
+  }
+}
+
+// Normalize a raw DB row into our Property type (works before and after migration)
+function normalizeProperty(p: Record<string, unknown>): Property {
+  return {
+    id: p.id as string,
+    address: p.address as string,
+    address_line1: (p.address_line1 as string) ?? (p.address as string),
+    address_line2: (p.address_line2 as string) ?? (p.unit as string) ?? null,
+    lot_number: (p.lot_number as string) ?? null,
+    street: (p.street as string) ?? null,
+    unit: (p.unit as string) ?? null,
+    zip: (p.zip as string) ?? null,
+    city: (p.city as string) ?? null,
+    state: (p.state as string) ?? null,
+    country: (p.country as string) ?? "USA",
+    property_type: (p.property_type as string) ?? "Single Family",
+    status: (p.status as Property["status"]) || "occupied",
+    notes: (p.notes as string) ?? null,
+    created_at: p.created_at as string,
+    updated_at: (p.updated_at as string) ?? null,
+  }
+}
+
 export async function getPropertyDetail(
   id: string
 ): Promise<PropertyDetail | null> {
@@ -113,11 +172,12 @@ export async function getPropertyDetail(
     await Promise.all([
       supabase.from("properties").select("*").eq("id", id).single(),
 
+      // Use is_current for ordering — works before and after migration
       supabase
         .from("residents")
         .select("*")
         .eq("property_id", id)
-        .order("status", { ascending: true })
+        .order("is_current", { ascending: false })
         .order("move_in_date", { ascending: false }),
 
       supabase
@@ -141,7 +201,8 @@ export async function getPropertyDetail(
 
   if (!propertyRes.data) return null
 
-  const residents = (residentsRes.data || []) as Resident[]
+  const rawResidents = (residentsRes.data || []) as Record<string, unknown>[]
+  const residents = rawResidents.map(normalizeResident)
   const violations = (violationsRes.data || []) as Violation[]
   const letters = (lettersRes.data || []) as Letter[]
 
@@ -187,10 +248,13 @@ export async function getPropertyDetail(
       : null
   }
 
+  const property = normalizeProperty(propertyRes.data as Record<string, unknown>)
+
   return {
-    property: propertyRes.data as Property,
-    currentResidents: residents.filter((r) => r.status === "active"),
-    formerResidents: residents.filter((r) => r.status === "former"),
+    property,
+    // Use is_current (original column) as the source of truth for active/former split
+    currentResidents: residents.filter((r) => r.is_current),
+    formerResidents: residents.filter((r) => !r.is_current),
     violations,
     letters,
     payments: (paymentsRes.data || []) as Payment[],

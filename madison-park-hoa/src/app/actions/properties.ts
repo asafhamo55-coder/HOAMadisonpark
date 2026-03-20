@@ -41,19 +41,26 @@ export async function addPropertyAction(input: AddPropertyInput) {
     .filter(Boolean)
     .join(", ")
 
-  const payload = {
+  // Core payload uses original columns that always exist
+  const payload: Record<string, unknown> = {
     address,
-    address_line1: input.address_line1.trim(),
-    address_line2: input.address_line2?.trim() || null,
-    city: input.city.trim() || "Johns Creek",
-    state: input.state.trim() || "GA",
-    zip: input.zip_code.trim() || "30022",
-    country: input.country?.trim() || "USA",
-    property_type: input.property_type || "Single Family",
     lot_number: input.lot_number?.trim() || null,
     unit: input.address_line2?.trim() || null,
+    street: input.address_line1?.trim() || null,
+    zip: input.zip_code.trim() || "30022",
+    city: input.city.trim() || "Johns Creek",
+    state: input.state.trim() || "GA",
     status: input.status,
     notes: input.notes?.trim() || null,
+  }
+
+  // Try to set new columns if migration has been applied
+  const hasNewCols = await checkPropertyNewColumns(supabase)
+  if (hasNewCols) {
+    payload.address_line1 = input.address_line1.trim()
+    payload.address_line2 = input.address_line2?.trim() || null
+    payload.country = input.country?.trim() || "USA"
+    payload.property_type = input.property_type || "Single Family"
   }
 
   const { data, error } = await supabase
@@ -96,19 +103,24 @@ export async function editPropertyAction(input: EditPropertyInput) {
     .filter(Boolean)
     .join(", ")
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     address,
-    address_line1: input.address_line1.trim(),
-    address_line2: input.address_line2?.trim() || null,
-    city: input.city.trim(),
-    state: input.state.trim(),
-    zip: input.zip_code.trim(),
-    country: input.country?.trim() || "USA",
-    property_type: input.property_type,
     lot_number: input.lot_number?.trim() || null,
     unit: input.address_line2?.trim() || null,
+    street: input.address_line1?.trim() || null,
+    zip: input.zip_code.trim(),
+    city: input.city.trim(),
+    state: input.state.trim(),
     status: input.status,
     notes: input.notes?.trim() || null,
+  }
+
+  const hasNewCols = await checkPropertyNewColumns(supabase)
+  if (hasNewCols) {
+    payload.address_line1 = input.address_line1.trim()
+    payload.address_line2 = input.address_line2?.trim() || null
+    payload.country = input.country?.trim() || "USA"
+    payload.property_type = input.property_type
   }
 
   const { error } = await supabase
@@ -134,18 +146,15 @@ export async function deletePropertyAction(id: string) {
 
   const supabase = createClient()
 
-  // Check for active residents
   const { count } = await supabase
     .from("residents")
     .select("id", { count: "exact", head: true })
     .eq("property_id", id)
-    .eq("status", "active")
+    .eq("is_current", true)
 
   if (count && count > 0) {
     return {
       error: `This property has ${count} active resident(s). Please move them out before deleting.`,
-      hasActiveResidents: true,
-      activeCount: count,
     }
   }
 
@@ -158,4 +167,17 @@ export async function deletePropertyAction(id: string) {
 
   revalidatePath("/dashboard/properties")
   return { error: null }
+}
+
+// Check if the migration has been applied by testing for a new column
+async function checkPropertyNewColumns(supabase: ReturnType<typeof createClient>): Promise<boolean> {
+  try {
+    const result = await supabase
+      .from("properties")
+      .select("address_line1")
+      .limit(0)
+    return !result.error
+  } catch {
+    return false
+  }
 }
