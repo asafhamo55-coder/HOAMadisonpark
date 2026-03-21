@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/client"
@@ -8,6 +8,7 @@ import { Sidebar, type SidebarUser } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh"
 
 export function AppShell({
   user,
@@ -20,6 +21,8 @@ export function AppShell({
 }) {
   const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+  usePullToRefresh(mainRef)
 
   async function handleLogout() {
     const supabase = createClient()
@@ -54,7 +57,7 @@ export function AppShell({
           onMenuClick={() => setSheetOpen(true)}
         />
 
-        <main className="flex-1 overflow-y-auto bg-muted/30 pb-20 lg:pb-0">
+        <main ref={mainRef} className="flex-1 overflow-y-auto bg-muted/30 pb-20 lg:pb-0">
           <div className="mx-auto max-w-7xl p-4 lg:p-6">
             {children}
           </div>
