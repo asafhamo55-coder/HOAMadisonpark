@@ -187,8 +187,18 @@ export async function inviteUser(email: string, role: string) {
     headersList.get("origin") ||
     "http://localhost:3000"
 
-  // 1. Try to create user in Supabase auth (no email sent by Supabase)
-  let userId: string
+  // 1. Check if user already exists in Supabase Auth — if so, delete first
+  const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+  const existing = listData?.users?.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase()
+  )
+  if (existing) {
+    // Delete old auth user and profile so we can start fresh
+    await admin.from("profiles").delete().eq("id", existing.id)
+    await admin.auth.admin.deleteUser(existing.id)
+  }
+
+  // 2. Create fresh user in Supabase auth (no email sent by Supabase)
   const { data: createData, error: createError } =
     await admin.auth.admin.createUser({
       email,
@@ -196,36 +206,11 @@ export async function inviteUser(email: string, role: string) {
       user_metadata: { role },
     })
 
-  if (createError) {
-    // If user already exists, look them up and re-invite
-    if (
-      createError.message.toLowerCase().includes("already") ||
-      createError.message.toLowerCase().includes("registered") ||
-      createError.message.toLowerCase().includes("exists")
-    ) {
-      // Find existing user by email
-      const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
-      const existing = listData?.users?.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase()
-      )
-      if (!existing) {
-        return { error: "User reportedly exists but could not be found. Try deleting first." }
-      }
-      userId = existing.id
+  if (createError) return { error: createError.message }
 
-      // Update their metadata with the new role
-      await admin.auth.admin.updateUserById(userId, {
-        user_metadata: { role },
-        ban_duration: "none", // unban in case they were deactivated
-      })
-    } else {
-      return { error: createError.message }
-    }
-  } else {
-    userId = createData.user.id
-  }
+  const userId = createData.user.id
 
-  // 2. Generate a recovery link so user can set their password
+  // 3. Generate a recovery link so user can set their password
   const { data: linkData, error: linkError } =
     await admin.auth.admin.generateLink({
       type: "recovery",
@@ -237,13 +222,13 @@ export async function inviteUser(email: string, role: string) {
 
   if (linkError) return { error: linkError.message }
 
-  // 3. Build the invite URL from the generated link properties
+  // 4. Build the invite URL from the generated link properties
   const tokenHash = linkData.properties?.hashed_token
   const inviteUrl = tokenHash
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${tokenHash}&type=recovery&redirect_to=${encodeURIComponent(`${origin}/auth/callback?next=/set-password`)}`
     : linkData.properties?.action_link || `${origin}/set-password`
 
-  // 4. Send branded invitation email via Resend
+  // 5. Send branded invitation email via Resend
   try {
     await sendEmail({
       to: email,
@@ -256,7 +241,7 @@ export async function inviteUser(email: string, role: string) {
     }
   }
 
-  // 5. Upsert profile entry
+  // 6. Create profile entry
   await admin.from("profiles").upsert({
     id: userId,
     email,
@@ -306,12 +291,15 @@ export async function deleteUser(userId: string) {
 
   if (userId === user.id) return { error: "Cannot delete yourself" }
 
-  // Delete profile first (cascade will handle related records)
+  // Delete profile (ignore errors — may already be deleted manually)
   await admin.from("profiles").delete().eq("id", userId)
 
-  // Delete from Supabase auth
+  // Delete from Supabase auth — this is the critical part
   const { error } = await admin.auth.admin.deleteUser(userId)
-  if (error) return { error: error.message }
+  // Ignore "not found" errors (user may already be gone from auth)
+  if (error && !error.message.toLowerCase().includes("not found")) {
+    return { error: error.message }
+  }
 
   await logAction(
     user.id,
