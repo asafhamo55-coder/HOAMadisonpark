@@ -187,15 +187,43 @@ export async function inviteUser(email: string, role: string) {
     headersList.get("origin") ||
     "http://localhost:3000"
 
-  // 1. Create user in Supabase auth (no email sent by Supabase)
+  // 1. Try to create user in Supabase auth (no email sent by Supabase)
+  let userId: string
   const { data: createData, error: createError } =
     await admin.auth.admin.createUser({
       email,
-      email_confirm: true, // auto-confirm so they can set password
+      email_confirm: true,
       user_metadata: { role },
     })
 
-  if (createError) return { error: createError.message }
+  if (createError) {
+    // If user already exists, look them up and re-invite
+    if (
+      createError.message.toLowerCase().includes("already") ||
+      createError.message.toLowerCase().includes("registered") ||
+      createError.message.toLowerCase().includes("exists")
+    ) {
+      // Find existing user by email
+      const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      const existing = listData?.users?.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      )
+      if (!existing) {
+        return { error: "User reportedly exists but could not be found. Try deleting first." }
+      }
+      userId = existing.id
+
+      // Update their metadata with the new role
+      await admin.auth.admin.updateUserById(userId, {
+        user_metadata: { role },
+        ban_duration: "none", // unban in case they were deactivated
+      })
+    } else {
+      return { error: createError.message }
+    }
+  } else {
+    userId = createData.user.id
+  }
 
   // 2. Generate a recovery link so user can set their password
   const { data: linkData, error: linkError } =
@@ -207,13 +235,7 @@ export async function inviteUser(email: string, role: string) {
       },
     })
 
-  if (linkError) {
-    // Clean up the user if link generation fails
-    if (createData.user) {
-      await admin.auth.admin.deleteUser(createData.user.id)
-    }
-    return { error: linkError.message }
-  }
+  if (linkError) return { error: linkError.message }
 
   // 3. Build the invite URL from the generated link properties
   const tokenHash = linkData.properties?.hashed_token
@@ -229,27 +251,24 @@ export async function inviteUser(email: string, role: string) {
       props: { role, inviteUrl },
     })
   } catch (emailErr) {
-    // User is created but email failed — don't delete user, admin can resend
     return {
       error: `User created but email failed: ${(emailErr as Error).message}. You can delete and re-invite.`,
     }
   }
 
-  // 5. Create profile entry
-  if (createData.user) {
-    await admin.from("profiles").upsert({
-      id: createData.user.id,
-      email,
-      role,
-    })
-  }
+  // 5. Upsert profile entry
+  await admin.from("profiles").upsert({
+    id: userId,
+    email,
+    role,
+  })
 
   await logAction(
     user.id,
     user.full_name || "Admin",
     `Invited user: ${email} as ${role}`,
     "profiles",
-    createData.user?.id
+    userId
   )
 
   revalidatePath("/dashboard/settings")
