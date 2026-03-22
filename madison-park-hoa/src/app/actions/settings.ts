@@ -192,31 +192,14 @@ export async function inviteUser(email: string, role: string) {
       headersList.get("origin") ||
       "http://localhost:3000"
 
-    // 1. Check if user already exists in Supabase Auth — if so, delete first
-    const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
-    const existing = listData?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    )
-    if (existing) {
-      // Delete old auth user and profile so we can start fresh
-      await admin.from("profiles").delete().eq("id", existing.id)
-      const { error: delErr } = await admin.auth.admin.deleteUser(existing.id)
-      if (delErr) return { error: `Failed to remove existing user: ${delErr.message}` }
-    }
+    // 1. Try to create user — if they already exist, that's fine
+    const { data: createData } = await admin.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { role },
+    })
 
-    // 2. Create fresh user in Supabase auth (no email sent by Supabase)
-    const { data: createData, error: createError } =
-      await admin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { role },
-      })
-
-    if (createError) return { error: `Failed to create user: ${createError.message}` }
-
-    const userId = createData.user.id
-
-    // 3. Generate a recovery link so user can set their password
+    // 2. Generate a recovery link (works for both new and existing users)
     const { data: linkData, error: linkError } =
       await admin.auth.admin.generateLink({
         type: "recovery",
@@ -227,6 +210,17 @@ export async function inviteUser(email: string, role: string) {
       })
 
     if (linkError) return { error: `Failed to generate invite link: ${linkError.message}` }
+
+    // Get user ID from whichever succeeded
+    const userId = createData?.user?.id || linkData?.user?.id
+    if (!userId) return { error: "Could not resolve user ID" }
+
+    // 3. Ensure user is confirmed, unbanned, and has correct role
+    await admin.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+      ban_duration: "none",
+      user_metadata: { role },
+    })
 
     // 4. Build the invite URL from the generated link properties
     const tokenHash = linkData.properties?.hashed_token
@@ -247,7 +241,7 @@ export async function inviteUser(email: string, role: string) {
       }
     }
 
-    // 6. Create profile entry
+    // 6. Upsert profile entry
     await admin.from("profiles").upsert({
       id: userId,
       email,
