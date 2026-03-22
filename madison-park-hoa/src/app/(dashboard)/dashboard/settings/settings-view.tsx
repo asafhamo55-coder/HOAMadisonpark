@@ -242,8 +242,12 @@ function UserManagementTab({
     if (!confirm(`Deactivate "${name}"? They will no longer be able to log in.`))
       return
     startTransition(async () => {
-      const result = await deactivateUser(userId)
-      if (result.error) alert(result.error)
+      try {
+        const result = await deactivateUser(userId)
+        if (result.error) alert(result.error)
+      } catch (err) {
+        alert(`Deactivate failed: ${(err as Error).message}`)
+      }
     })
   }
 
@@ -255,19 +259,27 @@ function UserManagementTab({
     )
       return
     startTransition(async () => {
-      const result = await deleteUser(userId)
-      if (result.error) alert(result.error)
+      try {
+        const result = await deleteUser(userId)
+        if (result.error) alert(result.error)
+      } catch (err) {
+        alert(`Delete failed: ${(err as Error).message}`)
+      }
     })
   }
 
   function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const result = await inviteUser(inviteEmail, inviteRole)
-      if (result.error) alert(result.error)
-      else {
-        setInviteEmail("")
-        setShowInvite(false)
+      try {
+        const result = await inviteUser(inviteEmail, inviteRole)
+        if (result.error) alert(result.error)
+        else {
+          setInviteEmail("")
+          setShowInvite(false)
+        }
+      } catch (err) {
+        alert(`Invite failed: ${(err as Error).message}`)
       }
     })
   }

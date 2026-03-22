@@ -33,15 +33,19 @@ async function logAction(
   entityId?: string,
   details?: Record<string, unknown>
 ) {
-  const supabase = createClient()
-  await supabase.from("audit_log").insert({
-    user_id: userId,
-    user_name: userName,
-    action,
-    entity_type: entityType || null,
-    entity_id: entityId || null,
-    details: details || null,
-  })
+  try {
+    const admin = createAdminClient()
+    await admin.from("audit_log").insert({
+      user_id: userId,
+      user_name: userName,
+      action,
+      entity_type: entityType || null,
+      entity_id: entityId || null,
+      details: details || null,
+    })
+  } catch {
+    // Don't let audit logging failures break the main operation
+  }
 }
 
 /* ── HOA Profile ─────────────────────────────────────────── */
@@ -178,139 +182,152 @@ export async function updateUserRole(
 }
 
 export async function inviteUser(email: string, role: string) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
-
-  const headersList = headers()
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    headersList.get("origin") ||
-    "http://localhost:3000"
-
-  // 1. Check if user already exists in Supabase Auth — if so, delete first
-  const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  const existing = listData?.users?.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase()
-  )
-  if (existing) {
-    // Delete old auth user and profile so we can start fresh
-    await admin.from("profiles").delete().eq("id", existing.id)
-    await admin.auth.admin.deleteUser(existing.id)
-  }
-
-  // 2. Create fresh user in Supabase auth (no email sent by Supabase)
-  const { data: createData, error: createError } =
-    await admin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: { role },
-    })
-
-  if (createError) return { error: createError.message }
-
-  const userId = createData.user.id
-
-  // 3. Generate a recovery link so user can set their password
-  const { data: linkData, error: linkError } =
-    await admin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: {
-        redirectTo: `${origin}/auth/callback?next=/set-password`,
-      },
-    })
-
-  if (linkError) return { error: linkError.message }
-
-  // 4. Build the invite URL from the generated link properties
-  const tokenHash = linkData.properties?.hashed_token
-  const inviteUrl = tokenHash
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${tokenHash}&type=recovery&redirect_to=${encodeURIComponent(`${origin}/auth/callback?next=/set-password`)}`
-    : linkData.properties?.action_link || `${origin}/set-password`
-
-  // 5. Send branded invitation email via Resend
   try {
-    await sendEmail({
-      to: email,
-      template: "invitation",
-      props: { role, inviteUrl },
-    })
-  } catch (emailErr) {
-    return {
-      error: `User created but email failed: ${(emailErr as Error).message}. You can delete and re-invite.`,
+    const user = await requireAdmin()
+    const admin = createAdminClient()
+
+    const headersList = headers()
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      headersList.get("origin") ||
+      "http://localhost:3000"
+
+    // 1. Check if user already exists in Supabase Auth — if so, delete first
+    const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const existing = listData?.users?.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    )
+    if (existing) {
+      // Delete old auth user and profile so we can start fresh
+      await admin.from("profiles").delete().eq("id", existing.id)
+      const { error: delErr } = await admin.auth.admin.deleteUser(existing.id)
+      if (delErr) return { error: `Failed to remove existing user: ${delErr.message}` }
     }
+
+    // 2. Create fresh user in Supabase auth (no email sent by Supabase)
+    const { data: createData, error: createError } =
+      await admin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        user_metadata: { role },
+      })
+
+    if (createError) return { error: `Failed to create user: ${createError.message}` }
+
+    const userId = createData.user.id
+
+    // 3. Generate a recovery link so user can set their password
+    const { data: linkData, error: linkError } =
+      await admin.auth.admin.generateLink({
+        type: "recovery",
+        email,
+        options: {
+          redirectTo: `${origin}/auth/callback?next=/set-password`,
+        },
+      })
+
+    if (linkError) return { error: `Failed to generate invite link: ${linkError.message}` }
+
+    // 4. Build the invite URL from the generated link properties
+    const tokenHash = linkData.properties?.hashed_token
+    const inviteUrl = tokenHash
+      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${tokenHash}&type=recovery&redirect_to=${encodeURIComponent(`${origin}/auth/callback?next=/set-password`)}`
+      : linkData.properties?.action_link || `${origin}/set-password`
+
+    // 5. Send branded invitation email via Resend
+    try {
+      await sendEmail({
+        to: email,
+        template: "invitation",
+        props: { role, inviteUrl },
+      })
+    } catch (emailErr) {
+      return {
+        error: `User created but email failed: ${(emailErr as Error).message}. You can delete and re-invite.`,
+      }
+    }
+
+    // 6. Create profile entry
+    await admin.from("profiles").upsert({
+      id: userId,
+      email,
+      role,
+    })
+
+    await logAction(
+      user.id,
+      user.full_name || "Admin",
+      `Invited user: ${email} as ${role}`,
+      "profiles",
+      userId
+    )
+
+    revalidatePath("/dashboard/settings")
+    return { error: null }
+  } catch (err) {
+    return { error: (err as Error).message || "Invite failed unexpectedly" }
   }
-
-  // 6. Create profile entry
-  await admin.from("profiles").upsert({
-    id: userId,
-    email,
-    role,
-  })
-
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    `Invited user: ${email} as ${role}`,
-    "profiles",
-    userId
-  )
-
-  revalidatePath("/dashboard/settings")
-  return { error: null }
 }
 
 export async function deactivateUser(userId: string) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
+  try {
+    const user = await requireAdmin()
+    const admin = createAdminClient()
 
-  if (userId === user.id) return { error: "Cannot deactivate yourself" }
+    if (userId === user.id) return { error: "Cannot deactivate yourself" }
 
-  // Ban the user using Supabase admin
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    ban_duration: "876000h", // ~100 years
-  })
+    // Ban the user using Supabase admin
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: "876000h", // ~100 years
+    })
 
-  if (error) return { error: error.message }
+    if (error) return { error: error.message }
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    "Deactivated user",
-    "profiles",
-    userId
-  )
+    await logAction(
+      user.id,
+      user.full_name || "Admin",
+      "Deactivated user",
+      "profiles",
+      userId
+    )
 
-  revalidatePath("/dashboard/settings")
-  return { error: null }
+    revalidatePath("/dashboard/settings")
+    return { error: null }
+  } catch (err) {
+    return { error: (err as Error).message || "Deactivate failed unexpectedly" }
+  }
 }
 
 export async function deleteUser(userId: string) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
+  try {
+    const user = await requireAdmin()
+    const admin = createAdminClient()
 
-  if (userId === user.id) return { error: "Cannot delete yourself" }
+    if (userId === user.id) return { error: "Cannot delete yourself" }
 
-  // Delete profile (ignore errors — may already be deleted manually)
-  await admin.from("profiles").delete().eq("id", userId)
+    // Delete profile (ignore errors — may already be deleted manually)
+    await admin.from("profiles").delete().eq("id", userId)
 
-  // Delete from Supabase auth — this is the critical part
-  const { error } = await admin.auth.admin.deleteUser(userId)
-  // Ignore "not found" errors (user may already be gone from auth)
-  if (error && !error.message.toLowerCase().includes("not found")) {
-    return { error: error.message }
+    // Delete from Supabase auth — this is the critical part
+    const { error } = await admin.auth.admin.deleteUser(userId)
+    // Ignore "not found" errors (user may already be gone from auth)
+    if (error && !error.message.toLowerCase().includes("not found")) {
+      return { error: `Failed to delete from auth: ${error.message}` }
+    }
+
+    await logAction(
+      user.id,
+      user.full_name || "Admin",
+      "Deleted user",
+      "profiles",
+      userId
+    )
+
+    revalidatePath("/dashboard/settings")
+    return { error: null }
+  } catch (err) {
+    return { error: (err as Error).message || "Delete failed unexpectedly" }
   }
-
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    "Deleted user",
-    "profiles",
-    userId
-  )
-
-  revalidatePath("/dashboard/settings")
-  return { error: null }
 }
 
 /* ── Audit Log ───────────────────────────────────────────── */
