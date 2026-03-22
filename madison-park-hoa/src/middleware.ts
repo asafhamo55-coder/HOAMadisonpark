@@ -54,7 +54,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated users away from auth pages (except set-password)
   // Residents go to /portal, everyone else goes to /dashboard
   if (user && (pathname === "/login" || pathname === "/reset-password")) {
     const url = request.nextUrl.clone()

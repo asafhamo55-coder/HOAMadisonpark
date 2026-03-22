@@ -180,9 +180,10 @@ export async function inviteUser(email: string, role: string) {
   const admin = createAdminClient()
 
   // Use Supabase admin to invite user via magic link
+  // Redirect to /auth/callback which exchanges the code, then to /set-password
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { role },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/dashboard`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback?next=/set-password`,
   })
 
   if (error) return { error: error.message }

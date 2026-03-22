@@ -46,7 +46,7 @@ export async function resetPassword(formData: FormData) {
   const origin = headersList.get("origin") || ""
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/dashboard`,
+    redirectTo: `${origin}/auth/callback?next=/set-password`,
   })
 
   if (error) {
