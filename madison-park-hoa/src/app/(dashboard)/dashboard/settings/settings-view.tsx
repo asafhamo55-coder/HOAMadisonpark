@@ -33,6 +33,7 @@ import {
   updateUserRole,
   inviteUser,
   deactivateUser,
+  deleteUser,
 } from "@/app/actions/settings"
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -246,6 +247,19 @@ function UserManagementTab({
     })
   }
 
+  function handleDelete(userId: string, name: string) {
+    if (
+      !confirm(
+        `Permanently delete "${name}"? This removes them from the system entirely and cannot be undone.`
+      )
+    )
+      return
+    startTransition(async () => {
+      const result = await deleteUser(userId)
+      if (result.error) alert(result.error)
+    })
+  }
+
   function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
@@ -400,6 +414,16 @@ function UserManagementTab({
                             title="Deactivate user"
                           >
                             <UserX className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDelete(p.id, p.full_name || p.email || "")
+                            }
+                            disabled={pending}
+                            className="rounded p-1 text-red-500 hover:bg-red-50"
+                            title="Delete user permanently"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       )}

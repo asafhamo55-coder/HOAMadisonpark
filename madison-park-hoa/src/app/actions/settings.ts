@@ -1,9 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getCurrentUser } from "@/lib/auth"
+import { sendEmail } from "@/lib/email/send"
 
 /* ── Helpers ──────────────────────────────────────────────── */
 
@@ -179,19 +181,64 @@ export async function inviteUser(email: string, role: string) {
   const user = await requireAdmin()
   const admin = createAdminClient()
 
-  // Use Supabase admin to invite user via magic link
-  // Redirect to /auth/callback which exchanges the code, then to /set-password
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { role },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback?next=/set-password`,
-  })
+  const headersList = headers()
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    headersList.get("origin") ||
+    "http://localhost:3000"
 
-  if (error) return { error: error.message }
+  // 1. Create user in Supabase auth (no email sent by Supabase)
+  const { data: createData, error: createError } =
+    await admin.auth.admin.createUser({
+      email,
+      email_confirm: true, // auto-confirm so they can set password
+      user_metadata: { role },
+    })
 
-  // Create profile entry
-  if (data.user) {
+  if (createError) return { error: createError.message }
+
+  // 2. Generate a recovery link so user can set their password
+  const { data: linkData, error: linkError } =
+    await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: {
+        redirectTo: `${origin}/auth/callback?next=/set-password`,
+      },
+    })
+
+  if (linkError) {
+    // Clean up the user if link generation fails
+    if (createData.user) {
+      await admin.auth.admin.deleteUser(createData.user.id)
+    }
+    return { error: linkError.message }
+  }
+
+  // 3. Build the invite URL from the generated link properties
+  const tokenHash = linkData.properties?.hashed_token
+  const inviteUrl = tokenHash
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${tokenHash}&type=recovery&redirect_to=${encodeURIComponent(`${origin}/auth/callback?next=/set-password`)}`
+    : linkData.properties?.action_link || `${origin}/set-password`
+
+  // 4. Send branded invitation email via Resend
+  try {
+    await sendEmail({
+      to: email,
+      template: "invitation",
+      props: { role, inviteUrl },
+    })
+  } catch (emailErr) {
+    // User is created but email failed — don't delete user, admin can resend
+    return {
+      error: `User created but email failed: ${(emailErr as Error).message}. You can delete and re-invite.`,
+    }
+  }
+
+  // 5. Create profile entry
+  if (createData.user) {
     await admin.from("profiles").upsert({
-      id: data.user.id,
+      id: createData.user.id,
       email,
       role,
     })
@@ -202,7 +249,7 @@ export async function inviteUser(email: string, role: string) {
     user.full_name || "Admin",
     `Invited user: ${email} as ${role}`,
     "profiles",
-    data.user?.id
+    createData.user?.id
   )
 
   revalidatePath("/dashboard/settings")
@@ -226,6 +273,31 @@ export async function deactivateUser(userId: string) {
     user.id,
     user.full_name || "Admin",
     "Deactivated user",
+    "profiles",
+    userId
+  )
+
+  revalidatePath("/dashboard/settings")
+  return { error: null }
+}
+
+export async function deleteUser(userId: string) {
+  const user = await requireAdmin()
+  const admin = createAdminClient()
+
+  if (userId === user.id) return { error: "Cannot delete yourself" }
+
+  // Delete profile first (cascade will handle related records)
+  await admin.from("profiles").delete().eq("id", userId)
+
+  // Delete from Supabase auth
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error) return { error: error.message }
+
+  await logAction(
+    user.id,
+    user.full_name || "Admin",
+    "Deleted user",
     "profiles",
     userId
   )

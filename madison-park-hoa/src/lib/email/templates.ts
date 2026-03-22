@@ -22,6 +22,10 @@ import {
   PaymentReminder,
   type PaymentReminderProps,
 } from "@/emails/templates/payment-reminder"
+import {
+  Invitation,
+  type InvitationProps,
+} from "@/emails/templates/invitation"
 
 export type TemplateMap = {
   "violation-notice": ViolationNoticeProps
@@ -30,6 +34,7 @@ export type TemplateMap = {
   "welcome-letter": WelcomeLetterProps
   "general-announcement": GeneralAnnouncementProps
   "payment-reminder": PaymentReminderProps
+  "invitation": InvitationProps
 }
 
 export type TemplateName = keyof TemplateMap
@@ -42,6 +47,7 @@ export const templates: Record<TemplateName, React.ComponentType<any>> = {
   "welcome-letter": WelcomeLetter,
   "general-announcement": GeneralAnnouncement,
   "payment-reminder": PaymentReminder,
+  "invitation": Invitation,
 }
 
 export const templateSubjects: Record<TemplateName, string> = {
@@ -51,4 +57,5 @@ export const templateSubjects: Record<TemplateName, string> = {
   "welcome-letter": "Welcome to Madison Park!",
   "general-announcement": "Community Update — Madison Park HOA",
   "payment-reminder": "HOA Dues Reminder — Madison Park HOA",
+  "invitation": "You're Invited to Madison Park HOA",
 }
