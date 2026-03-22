@@ -356,6 +356,11 @@ function UserManagementTab({
                           (you)
                         </span>
                       )}
+                      {p.status === "invited" && (
+                        <span className="ml-1 inline-block rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                          Invited
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {p.email || "—"}

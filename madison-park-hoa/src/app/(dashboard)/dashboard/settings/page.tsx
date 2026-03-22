@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { SettingsView } from "./settings-view"
 
 export type Profile = {
@@ -8,6 +9,7 @@ export type Profile = {
   email: string | null
   role: string | null
   created_at: string
+  status?: "active" | "invited"
 }
 
 export type AuditEntry = {
@@ -47,8 +49,9 @@ export default async function SettingsPage() {
   const user = await requireRole(["admin"])
 
   const supabase = createClient()
+  const admin = createAdminClient()
 
-  const [settingsRes, profilesRes, auditRes] = await Promise.all([
+  const [settingsRes, profilesRes, auditRes, authUsersRes] = await Promise.all([
     supabase.from("hoa_settings").select("key, value"),
     supabase
       .from("profiles")
@@ -59,6 +62,7 @@ export default async function SettingsPage() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50),
+    admin.auth.admin.listUsers({ perPage: 1000 }),
   ])
 
   const settingsMap: Record<string, unknown> = {}
@@ -85,12 +89,37 @@ export default async function SettingsPage() {
   const violationCategories = (settingsMap.violation_categories ||
     []) as ViolationCategoryConfig[]
 
+  // Merge auth users with profiles so invited-but-profileless users are visible
+  const profilesById = new Map<string, Profile>()
+  for (const p of (profilesRes.data || []) as Profile[]) {
+    profilesById.set(p.id, { ...p, status: "active" })
+  }
+
+  const authUsers = authUsersRes.data?.users || []
+  for (const au of authUsers) {
+    if (!profilesById.has(au.id)) {
+      // Auth user with no profile row — likely a stuck invite
+      profilesById.set(au.id, {
+        id: au.id,
+        full_name: (au.user_metadata?.full_name as string) || null,
+        email: au.email || null,
+        role: (au.user_metadata?.role as string) || null,
+        created_at: au.created_at,
+        status: "invited",
+      })
+    }
+  }
+
+  const allProfiles = Array.from(profilesById.values()).sort((a, b) =>
+    (a.full_name || a.email || "").localeCompare(b.full_name || b.email || "")
+  )
+
   return (
     <SettingsView
       hoaProfile={hoaProfile}
       duesSettings={duesSettings}
       violationCategories={violationCategories}
-      profiles={(profilesRes.data || []) as Profile[]}
+      profiles={allProfiles}
       auditLog={(auditRes.data || []) as AuditEntry[]}
       currentUserId={user.id}
     />
