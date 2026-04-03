@@ -13,8 +13,8 @@ import {
   FlaskConical,
   Paperclip,
   X,
-  Image,
-  File,
+  Image as ImageIcon,
+  File as FileIcon,
   PencilLine,
   Undo2,
 } from "lucide-react"
@@ -156,7 +156,6 @@ export function EmailComposer({
   // Template editing state
   const [isEditingTemplate, setIsEditingTemplate] = useState(false)
   const [templateHtmlOverride, setTemplateHtmlOverride] = useState("")
-  const [originalTemplateHtml, setOriginalTemplateHtml] = useState("")
 
   // Attachments state
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
@@ -201,7 +200,6 @@ export function EmailComposer({
       setPreviewHtml("")
       setIsEditingTemplate(false)
       setTemplateHtmlOverride("")
-      setOriginalTemplateHtml("")
       setAttachments([])
 
       // Auto-fill recipient email from default resident
@@ -261,7 +259,6 @@ export function EmailComposer({
     setSelectedTemplate(value)
     setIsEditingTemplate(false)
     setTemplateHtmlOverride("")
-    setOriginalTemplateHtml("")
     if (value !== "custom" && TEMPLATE_SUBJECTS[value]) {
       setSubject(TEMPLATE_SUBJECTS[value])
     }
@@ -277,7 +274,6 @@ export function EmailComposer({
     const props = buildTemplateProps()
     const result = await renderTemplatePreview(selectedTemplate, props)
     if (result.html) {
-      setOriginalTemplateHtml(result.html)
       setTemplateHtmlOverride(result.html)
       setIsEditingTemplate(true)
     }
@@ -778,7 +774,7 @@ export function EmailComposer({
                         {uploading ? (
                           <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                         ) : (
-                          <Image className="mr-1 h-3 w-3" />
+                          <ImageIcon className="mr-1 h-3 w-3" />
                         )}
                         Add Images
                       </Button>
@@ -792,7 +788,7 @@ export function EmailComposer({
                         {uploading ? (
                           <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                         ) : (
-                          <File className="mr-1 h-3 w-3" />
+                          <FileIcon className="mr-1 h-3 w-3" />
                         )}
                         Add Files
                       </Button>
@@ -817,9 +813,9 @@ export function EmailComposer({
                           className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
                         >
                           {isImageType(att.type) ? (
-                            <Image className="h-4 w-4 shrink-0 text-blue-500" />
+                            <ImageIcon className="h-4 w-4 shrink-0 text-blue-500" />
                           ) : (
-                            <File className="h-4 w-4 shrink-0 text-gray-500" />
+                            <FileIcon className="h-4 w-4 shrink-0 text-gray-500" />
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-medium">
@@ -913,9 +909,9 @@ export function EmailComposer({
                         className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
                       >
                         {isImageType(att.type) ? (
-                          <Image className="h-2.5 w-2.5" />
+                          <ImageIcon className="h-2.5 w-2.5" />
                         ) : (
-                          <File className="h-2.5 w-2.5" />
+                          <FileIcon className="h-2.5 w-2.5" />
                         )}
                         {att.name.length > 20
                           ? att.name.slice(0, 17) + "..."
