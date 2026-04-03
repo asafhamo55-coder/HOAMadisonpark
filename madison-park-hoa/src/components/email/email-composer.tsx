@@ -11,6 +11,12 @@ import {
   FileText,
   Braces,
   FlaskConical,
+  Paperclip,
+  X,
+  Image,
+  File,
+  PencilLine,
+  Undo2,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -37,6 +43,9 @@ import {
   saveDraft,
   renderTemplatePreview,
   sendTestEmail,
+  uploadEmailAttachment,
+  removeEmailAttachment,
+  type AttachmentMeta,
 } from "@/app/actions/email"
 
 // ── Template configuration ───────────────────────────────────
@@ -111,6 +120,16 @@ interface EmailComposerProps {
   violations?: ViolationInfo[]
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function isImageType(type: string): boolean {
+  return type.startsWith("image/")
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function EmailComposer({
@@ -133,6 +152,16 @@ export function EmailComposer({
   const [propertyId, setPropertyId] = useState(defaultPropertyId)
   const [residentId, setResidentId] = useState(defaultResidentId)
   const [violationId, setViolationId] = useState(defaultViolationId || "")
+
+  // Template editing state
+  const [isEditingTemplate, setIsEditingTemplate] = useState(false)
+  const [templateHtmlOverride, setTemplateHtmlOverride] = useState("")
+  const [originalTemplateHtml, setOriginalTemplateHtml] = useState("")
+
+  // Attachments state
+  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Preview state
   const [previewHtml, setPreviewHtml] = useState("")
@@ -170,6 +199,10 @@ export function EmailComposer({
       setSubject("")
       setBody("")
       setPreviewHtml("")
+      setIsEditingTemplate(false)
+      setTemplateHtmlOverride("")
+      setOriginalTemplateHtml("")
+      setAttachments([])
 
       // Auto-fill recipient email from default resident
       if (defaultResidentId) {
@@ -223,14 +256,39 @@ export function EmailComposer({
     }
   }
 
-  // When template changes, auto-fill subject
+  // When template changes, auto-fill subject and reset edit mode
   function handleTemplateChange(value: string) {
     setSelectedTemplate(value)
+    setIsEditingTemplate(false)
+    setTemplateHtmlOverride("")
+    setOriginalTemplateHtml("")
     if (value !== "custom" && TEMPLATE_SUBJECTS[value]) {
       setSubject(TEMPLATE_SUBJECTS[value])
     }
     // Trigger preview refresh
     requestPreview(value)
+  }
+
+  // Enable template editing mode
+  async function handleEditTemplate() {
+    if (selectedTemplate === "custom") return
+
+    // Render the template to HTML first
+    const props = buildTemplateProps()
+    const result = await renderTemplatePreview(selectedTemplate, props)
+    if (result.html) {
+      setOriginalTemplateHtml(result.html)
+      setTemplateHtmlOverride(result.html)
+      setIsEditingTemplate(true)
+    }
+  }
+
+  // Revert template edits
+  function handleRevertTemplate() {
+    setIsEditingTemplate(false)
+    setTemplateHtmlOverride("")
+    setOriginalTemplateHtml("")
+    requestPreview()
   }
 
   // Debounced preview generation
@@ -240,9 +298,16 @@ export function EmailComposer({
 
       debounceRef.current = setTimeout(async () => {
         const tmpl = templateOverride ?? selectedTemplate
+
         if (tmpl === "custom") {
           // For custom, wrap body in minimal HTML
           setPreviewHtml(wrapCustomBody(body, subject))
+          return
+        }
+
+        // If user is editing template HTML, use their version
+        if (isEditingTemplate && templateHtmlOverride && !templateOverride) {
+          setPreviewHtml(templateHtmlOverride)
           return
         }
 
@@ -256,13 +321,23 @@ export function EmailComposer({
       }, 500)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedTemplate, body, subject, propertyId, residentId, violationId]
+    [selectedTemplate, body, subject, propertyId, residentId, violationId, isEditingTemplate, templateHtmlOverride]
   )
 
   // Trigger preview on content changes
   useEffect(() => {
     if (open) requestPreview()
   }, [open, body, subject, selectedTemplate, propertyId, residentId, violationId, requestPreview])
+
+  // Update preview when template HTML override changes
+  useEffect(() => {
+    if (isEditingTemplate && templateHtmlOverride) {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        setPreviewHtml(templateHtmlOverride)
+      }, 500)
+    }
+  }, [isEditingTemplate, templateHtmlOverride])
 
   // Insert variable at cursor in body
   function insertVariable(key: string) {
@@ -297,12 +372,62 @@ export function EmailComposer({
 
   // Get the HTML to send/save
   async function getFinalHtml(): Promise<string> {
+    // If user edited the template HTML, use their version
+    if (isEditingTemplate && templateHtmlOverride) {
+      return templateHtmlOverride
+    }
+
     if (selectedTemplate !== "custom") {
       const props = buildTemplateProps()
       const result = await renderTemplatePreview(selectedTemplate, props)
       return result.html || wrapCustomBody(resolveVariables(body), subject)
     }
     return wrapCustomBody(resolveVariables(body), subject)
+  }
+
+  // Handle file attachment upload
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    const newAttachments: AttachmentMeta[] = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 10MB)`)
+        continue
+      }
+
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const result = await uploadEmailAttachment(formData)
+      if (result.error) {
+        toast.error(`Failed to upload ${file.name}: ${result.error}`)
+      } else if (result.attachment) {
+        newAttachments.push(result.attachment)
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments])
+      toast.success(
+        `${newAttachments.length} file${newAttachments.length > 1 ? "s" : ""} attached`
+      )
+    }
+
+    setUploading(false)
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  // Remove an attachment
+  async function handleRemoveAttachment(index: number) {
+    const att = attachments[index]
+    await removeEmailAttachment(att.storagePath)
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   // Send email
@@ -322,6 +447,7 @@ export function EmailComposer({
       bodyHtml: html,
       recipientEmail,
       type: getLetterType(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     })
 
     if (result.error) {
@@ -350,6 +476,7 @@ export function EmailComposer({
       bodyHtml: html,
       recipientEmail,
       type: getLetterType(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     })
 
     if (result.error) {
@@ -562,28 +689,167 @@ export function EmailComposer({
                   </>
                 )}
 
-                {/* Template info message */}
-                {selectedTemplate !== "custom" && (
+                {/* Template info + edit button */}
+                {selectedTemplate !== "custom" && !isEditingTemplate && (
                   <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3">
-                    <div className="flex items-start gap-2">
-                      <FileText className="mt-0.5 h-4 w-4 text-blue-600" />
-                      <div>
-                        <p className="text-sm font-medium text-blue-900">
-                          Using{" "}
-                          {TEMPLATE_OPTIONS.find(
-                            (t) => t.value === selectedTemplate
-                          )?.label}{" "}
-                          template
-                        </p>
-                        <p className="mt-0.5 text-xs text-blue-700">
-                          The template will be auto-filled with data from the
-                          selected property, resident, and violation. Preview
-                          updates live on the right.
-                        </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <FileText className="mt-0.5 h-4 w-4 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-900">
+                            Using{" "}
+                            {TEMPLATE_OPTIONS.find(
+                              (t) => t.value === selectedTemplate
+                            )?.label}{" "}
+                            template
+                          </p>
+                          <p className="mt-0.5 text-xs text-blue-700">
+                            The template will be auto-filled with data from the
+                            selected property, resident, and violation. Preview
+                            updates live on the right.
+                          </p>
+                        </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
+                        onClick={handleEditTemplate}
+                      >
+                        <PencilLine className="mr-1 h-3 w-3" />
+                        Edit Template
+                      </Button>
                     </div>
                   </div>
                 )}
+
+                {/* Template HTML editor (when editing) */}
+                {selectedTemplate !== "custom" && isEditingTemplate && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-1.5 text-xs">
+                        <PencilLine className="h-3 w-3 text-amber-600" />
+                        <span className="text-amber-700">Editing Template HTML</span>
+                      </Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-muted-foreground"
+                        onClick={handleRevertTemplate}
+                      >
+                        <Undo2 className="mr-1 h-3 w-3" />
+                        Revert to Original
+                      </Button>
+                    </div>
+                    <div className="rounded-md border border-amber-200 bg-amber-50/30 p-2">
+                      <p className="mb-2 text-[11px] text-amber-700">
+                        You can modify the template HTML below. Changes apply only to this email and won&apos;t affect the saved template.
+                      </p>
+                      <Textarea
+                        value={templateHtmlOverride}
+                        onChange={(e) => setTemplateHtmlOverride(e.target.value)}
+                        rows={14}
+                        className="resize-none font-mono text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachments Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 text-xs">
+                      <Paperclip className="h-3 w-3" />
+                      Attachments
+                      {attachments.length > 0 && (
+                        <span className="rounded-full bg-sidebar-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-accent">
+                          {attachments.length}
+                        </span>
+                      )}
+                    </Label>
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Image className="mr-1 h-3 w-3" />
+                        )}
+                        Add Images
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <File className="mr-1 h-3 w-3" />
+                        )}
+                        Add Files
+                      </Button>
+                    </div>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  {/* Attachment list */}
+                  {attachments.length > 0 && (
+                    <div className="space-y-1.5">
+                      {attachments.map((att, i) => (
+                        <div
+                          key={att.storagePath}
+                          className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                        >
+                          {isImageType(att.type) ? (
+                            <Image className="h-4 w-4 shrink-0 text-blue-500" />
+                          ) : (
+                            <File className="h-4 w-4 shrink-0 text-gray-500" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium">
+                              {att.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {formatFileSize(att.size)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttachment(i)}
+                            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-muted-foreground">
+                        Max 10MB per file. Attachments will be included in the email.
+                      </p>
+                    </div>
+                  )}
+
+                  {attachments.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      No attachments. Click above to attach images or documents.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -633,6 +899,32 @@ export function EmailComposer({
                   </div>
                 )}
               </div>
+
+              {/* Attachment preview in sidebar */}
+              {attachments.length > 0 && (
+                <div className="border-t px-4 py-2.5">
+                  <p className="mb-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Attachments ({attachments.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {attachments.map((att) => (
+                      <span
+                        key={att.storagePath}
+                        className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
+                      >
+                        {isImageType(att.type) ? (
+                          <Image className="h-2.5 w-2.5" />
+                        ) : (
+                          <File className="h-2.5 w-2.5" />
+                        )}
+                        {att.name.length > 20
+                          ? att.name.slice(0, 17) + "..."
+                          : att.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -674,6 +966,11 @@ export function EmailComposer({
                   <Send className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Send Now
+                {attachments.length > 0 && (
+                  <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px]">
+                    {attachments.length} file{attachments.length > 1 ? "s" : ""}
+                  </span>
+                )}
               </Button>
             </div>
           </div>

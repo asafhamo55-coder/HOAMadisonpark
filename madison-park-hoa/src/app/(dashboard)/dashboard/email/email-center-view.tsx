@@ -20,6 +20,7 @@ import {
   ToggleRight,
   Loader2,
   X,
+  Paperclip,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -52,6 +53,7 @@ import type {
   PropertyOption,
   ResidentOption,
   ViolationOption,
+  LetterAttachment,
 } from "./page-data"
 import {
   updateEmailTemplate,
@@ -315,6 +317,9 @@ export function EmailCenterView({
                 <th className="px-3 py-2.5 text-left font-medium">Property</th>
                 <th className="px-3 py-2.5 text-left font-medium">Type</th>
                 <th className="px-3 py-2.5 text-left font-medium">Subject</th>
+                <th className="px-3 py-2.5 text-center font-medium">
+                  <Paperclip className="mx-auto h-3.5 w-3.5" />
+                </th>
                 <th className="px-3 py-2.5 text-left font-medium">Status</th>
               </tr>
             </thead>
@@ -322,7 +327,7 @@ export function EmailCenterView({
               {filteredLetters.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-12 text-center text-muted-foreground"
                   >
                     No letters found.
@@ -362,6 +367,14 @@ export function EmailCenterView({
                       </td>
                       <td className="max-w-xs truncate px-3 py-2 font-medium">
                         {l.subject}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {l.attachments && l.attachments.length > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-muted-foreground" title={`${l.attachments.length} attachment${l.attachments.length > 1 ? "s" : ""}`}>
+                            <Paperclip className="h-3 w-3" />
+                            <span className="text-[10px]">{l.attachments.length}</span>
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <span
@@ -440,12 +453,41 @@ export function EmailCenterView({
             </DialogDescription>
           </DialogHeader>
           {viewLetter && (
-            <iframe
-              srcDoc={viewLetter.body_html}
-              className="h-[60vh] w-full rounded border-0"
-              title="Letter Preview"
-              sandbox="allow-same-origin"
-            />
+            <>
+              <iframe
+                srcDoc={viewLetter.body_html}
+                className="h-[55vh] w-full rounded border-0"
+                title="Letter Preview"
+                sandbox="allow-same-origin"
+              />
+              {viewLetter.attachments && viewLetter.attachments.length > 0 && (
+                <div className="mt-3 rounded-md border p-3">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Paperclip className="h-3 w-3" />
+                    Attachments ({viewLetter.attachments.length})
+                  </p>
+                  <div className="space-y-1.5">
+                    {viewLetter.attachments.map((att: LetterAttachment) => (
+                      <a
+                        key={att.storagePath}
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 rounded border px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors"
+                      >
+                        <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="truncate font-medium">{att.name}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {att.size < 1024 * 1024
+                            ? `${(att.size / 1024).toFixed(1)} KB`
+                            : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
