@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   Megaphone,
   FileText,
@@ -11,6 +12,8 @@ import {
   Clock,
   FileImage,
   File as FileIcon,
+  BookOpen,
+  ChevronRight,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { CommunityAnnouncement, CommunityDocument } from "./page"
@@ -135,6 +138,24 @@ export function CommunityView({
           )}
         </CardContent>
       </Card>
+
+      {/* Community Rules Link */}
+      <Link href="/portal/rules">
+        <Card className="cursor-pointer transition-shadow hover:shadow-md">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+              <BookOpen className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Community Rules & Guidelines</p>
+              <p className="text-xs text-muted-foreground">
+                View pet policies, parking rules, architectural standards, leasing restrictions, and more
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Documents */}
       <Card>

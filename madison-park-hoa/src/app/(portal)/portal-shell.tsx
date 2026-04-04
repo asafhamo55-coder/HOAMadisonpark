@@ -8,6 +8,7 @@ import {
   Users,
   UserCircle,
   LogOut,
+  BookOpen,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import {
@@ -19,6 +20,7 @@ import {
 const NAV_ITEMS = [
   { title: "My Home", href: "/portal", icon: Home },
   { title: "Community", href: "/portal/community", icon: Users },
+  { title: "Rules", href: "/portal/rules", icon: BookOpen },
   { title: "Account", href: "/portal/account", icon: UserCircle },
 ]
 
