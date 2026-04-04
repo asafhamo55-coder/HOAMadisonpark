@@ -5,6 +5,7 @@ import { Resend } from "resend"
 import { render } from "@react-email/components"
 import { createElement } from "react"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getCurrentUser } from "@/lib/auth"
 import {
   templates,
@@ -24,6 +25,86 @@ function getFromAddress() {
   return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <onboarding@resend.dev>"
 }
 
+export type AttachmentMeta = {
+  name: string
+  url: string
+  size: number
+  type: string
+  storagePath: string
+}
+
+export async function uploadEmailAttachment(
+  formData: FormData
+): Promise<{ attachment?: AttachmentMeta; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+
+  const file = formData.get("file") as File | null
+  if (!file || !file.size) return { error: "No file provided" }
+
+  // 10MB limit
+  if (file.size > 10 * 1024 * 1024) {
+    return { error: "File size must be under 10MB" }
+  }
+
+  const admin = createAdminClient()
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase()
+  const storagePath = `${user.id}/${Date.now()}-${safeName}`
+
+  const { error: uploadError } = await admin.storage
+    .from("email-attachments")
+    .upload(storagePath, file, {
+      contentType: file.type,
+      upsert: false,
+    })
+
+  if (uploadError) {
+    return { error: `Upload failed: ${uploadError.message}` }
+  }
+
+  const { data: { publicUrl } } = admin.storage
+    .from("email-attachments")
+    .getPublicUrl(storagePath)
+
+  return {
+    attachment: {
+      name: file.name,
+      url: publicUrl,
+      size: file.size,
+      type: file.type,
+      storagePath,
+    },
+  }
+}
+
+export async function removeEmailAttachment(storagePath: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+
+  const admin = createAdminClient()
+  await admin.storage.from("email-attachments").remove([storagePath])
+  return { error: null }
+}
+
+async function logAuditEntry(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  userName: string,
+  action: string,
+  entityType: string,
+  entityId: string,
+  details: Record<string, unknown>
+) {
+  await supabase.from("audit_log").insert({
+    user_id: userId,
+    user_name: userName,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    details,
+  })
+}
+
 export async function sendLetter({
   propertyId,
   residentId,
@@ -32,6 +113,7 @@ export async function sendLetter({
   bodyHtml,
   recipientEmail,
   type,
+  attachments,
 }: {
   propertyId: string
   residentId?: string | null
@@ -40,11 +122,23 @@ export async function sendLetter({
   bodyHtml: string
   recipientEmail: string
   type: string
+  attachments?: AttachmentMeta[]
 }) {
   const supabase = createClient()
   const user = await getCurrentUser()
 
   if (!user) return { error: "Unauthorized" }
+
+  // Build Resend attachments from uploaded files
+  const resendAttachments: { filename: string; path: string }[] = []
+  if (attachments?.length) {
+    for (const att of attachments) {
+      resendAttachments.push({
+        filename: att.name,
+        path: att.url,
+      })
+    }
+  }
 
   // Send via Resend
   let resendData: { id: string } | null = null
@@ -55,12 +149,15 @@ export async function sendLetter({
       to: [recipientEmail],
       subject,
       html: bodyHtml,
+      ...(resendAttachments.length > 0 && { attachments: resendAttachments }),
     })
     resendData = result.data
     resendError = result.error
   } catch (err) {
     return { error: `Email config error: ${(err as Error).message}` }
   }
+
+  const attachmentsMeta = attachments?.length ? attachments : []
 
   if (resendError) {
     // Save as failed letter
@@ -74,13 +171,14 @@ export async function sendLetter({
       recipient_email: recipientEmail,
       sent_by: user.id,
       status: "failed",
+      attachments: attachmentsMeta,
     })
 
     return { error: resendError.message }
   }
 
   // Save sent letter
-  const { error: dbError } = await supabase.from("letters").insert({
+  const { data: letterData, error: dbError } = await supabase.from("letters").insert({
     property_id: propertyId,
     resident_id: residentId || null,
     violation_id: violationId || null,
@@ -92,11 +190,31 @@ export async function sendLetter({
     recipient_email: recipientEmail,
     resend_message_id: resendData?.id || null,
     status: "sent",
-  })
+    attachments: attachmentsMeta,
+  }).select("id").single()
 
   if (dbError) {
     return { error: `Email sent but failed to save record: ${dbError.message}` }
   }
+
+  // Log to audit trail for portal documentation
+  await logAuditEntry(
+    supabase,
+    user.id,
+    user.full_name || user.email || "Unknown",
+    "email_sent",
+    "letter",
+    letterData?.id || "",
+    {
+      subject,
+      recipient_email: recipientEmail,
+      type,
+      property_id: propertyId,
+      resident_id: residentId || null,
+      has_attachments: (attachmentsMeta.length > 0),
+      attachment_count: attachmentsMeta.length,
+    }
+  )
 
   revalidatePath(`/dashboard/properties/${propertyId}`)
   revalidatePath("/dashboard/email")
@@ -112,6 +230,7 @@ export async function saveDraft({
   bodyHtml,
   recipientEmail,
   type,
+  attachments,
 }: {
   propertyId: string
   residentId?: string | null
@@ -120,6 +239,7 @@ export async function saveDraft({
   bodyHtml: string
   recipientEmail: string
   type: string
+  attachments?: AttachmentMeta[]
 }) {
   const supabase = createClient()
   const user = await getCurrentUser()
@@ -136,6 +256,7 @@ export async function saveDraft({
     recipient_email: recipientEmail,
     sent_by: user.id,
     status: "draft",
+    attachments: attachments || [],
   })
 
   if (error) return { error: error.message }
