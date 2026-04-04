@@ -59,10 +59,16 @@ export type AttentionProperty = {
 
 /* ── Admin / Board data ───────────────────────────────────── */
 
+export type OccupancyBreakdown = {
+  type: string
+  count: number
+}
+
 export type AdminDashboardData = {
   stats: StatCard[]
   violationsByCategory: ViolationByCategory[]
   violationsByMonth: ViolationByMonth[]
+  occupancyBreakdown: OccupancyBreakdown[]
   recentViolations: RecentViolation[]
   recentLetters: RecentLetter[]
   upcomingJobs: UpcomingJob[]
@@ -86,6 +92,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     upcomingJobsRes,
     announcementsRes,
     propertiesFullRes,
+    occupancyRes,
   ] = await Promise.all([
     // Stats
     supabase
@@ -155,6 +162,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     supabase
       .from("properties")
       .select("id, address, status"),
+
+    // Occupancy type breakdown
+    supabase
+      .from("properties")
+      .select("occupancy_type"),
   ])
 
   // Calculate stats
@@ -277,10 +289,21 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }))
     .slice(0, 10)
 
+  // Occupancy breakdown
+  const occupancyCounts: Record<string, number> = {}
+  for (const p of occupancyRes.data || []) {
+    const t = (p.occupancy_type as string) || "owner_occupied"
+    occupancyCounts[t] = (occupancyCounts[t] || 0) + 1
+  }
+  const occupancyBreakdown: OccupancyBreakdown[] = Object.entries(occupancyCounts).map(
+    ([type, count]) => ({ type, count })
+  )
+
   return {
     stats,
     violationsByCategory,
     violationsByMonth,
+    occupancyBreakdown,
     recentViolations,
     recentLetters,
     upcomingJobs,
