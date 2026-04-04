@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { format, isPast, parseISO } from "date-fns"
 import {
@@ -29,6 +29,7 @@ import {
   DollarSign,
   Loader2,
   X,
+  ImageIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -68,6 +69,7 @@ import type {
 import {
   resolveViolationAction,
   addFineAction,
+  getViolationPhotoUrls,
 } from "@/app/actions/violations"
 import { LogViolationModal } from "@/components/violations/log-violation-modal"
 
@@ -138,6 +140,7 @@ export function ViolationsView({
   // Modal state
   const [createOpen, setCreateOpen] = useState(false)
   const [fineViolation, setFineViolation] = useState<ViolationRow | null>(null)
+  const [viewViolation, setViewViolation] = useState<ViolationRow | null>(null)
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
@@ -341,11 +344,9 @@ export function ViolationsView({
           const isActive = !["resolved", "dismissed"].includes(v.status)
           return (
             <div className="flex items-center gap-1">
-              <Link href={`/dashboard/properties/${v.property_id}`}>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <Eye className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewViolation(v)}>
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
               {canManage && isActive && (
                 <>
                   <Link
@@ -706,6 +707,12 @@ export function ViolationsView({
         violation={fineViolation}
         onClose={() => setFineViolation(null)}
       />
+
+      {/* Violation Detail Modal */}
+      <ViolationDetailDialog
+        violation={viewViolation}
+        onClose={() => setViewViolation(null)}
+      />
     </div>
   )
 }
@@ -862,5 +869,175 @@ function AddFineDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ── Violation Detail Dialog ─────────────────────────────────
+
+function ViolationDetailDialog({
+  violation,
+  onClose,
+}: {
+  violation: ViolationRow | null
+  onClose: () => void
+}) {
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [loadingPhotos, setLoadingPhotos] = useState(false)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (violation?.photos?.length) {
+      setLoadingPhotos(true)
+      getViolationPhotoUrls(violation.photos).then((result) => {
+        setPhotoUrls(result.urls)
+        setLoadingPhotos(false)
+      })
+    } else {
+      setPhotoUrls([])
+    }
+  }, [violation])
+
+  if (!violation) return null
+
+  const statusCfg = statusColors[violation.status] || statusColors.open
+
+  return (
+    <>
+      <Dialog open={violation !== null} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {violation.category} Violation
+            </DialogTitle>
+            <DialogDescription>
+              {violation.property_address}
+              {violation.resident_name && ` — ${violation.resident_name}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Status & Severity */}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className={cn("text-xs", statusCfg)}>
+                {violation.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+              </Badge>
+              <Badge variant="outline" className={cn("text-xs", severityColors[violation.severity])}>
+                {violation.severity.charAt(0).toUpperCase() + violation.severity.slice(1)}
+              </Badge>
+            </div>
+
+            {/* Description */}
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">Description</p>
+              <p className="text-sm whitespace-pre-wrap">{violation.description}</p>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Reported Date</p>
+                <p className="text-sm">
+                  {violation.reported_date
+                    ? format(parseISO(violation.reported_date), "MMM d, yyyy")
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Due Date</p>
+                <p className="text-sm">
+                  {violation.due_date
+                    ? format(parseISO(violation.due_date), "MMM d, yyyy")
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            {/* Fine */}
+            {violation.fine_amount != null && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Fine</p>
+                <p className="text-sm font-semibold">
+                  ${violation.fine_amount.toFixed(2)}
+                  {violation.fine_paid && (
+                    <span className="ml-2 text-emerald-600 font-normal">(Paid)</span>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* Notes */}
+            {violation.notes && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Internal Notes</p>
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{violation.notes}</p>
+              </div>
+            )}
+
+            {/* Photos */}
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <ImageIcon className="h-3 w-3" />
+                Photos ({violation.photos?.length || 0})
+              </p>
+              {loadingPhotos ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading photos...</span>
+                </div>
+              ) : photoUrls.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {photoUrls.map((url, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setExpandedPhoto(url)}
+                      className="group relative aspect-square overflow-hidden rounded-lg border bg-muted/30 hover:border-sidebar-accent transition-colors"
+                    >
+                      <img
+                        src={url}
+                        alt={`Violation photo ${i + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                        <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">No photos attached.</p>
+              )}
+            </div>
+
+            {/* Property Link */}
+            <div className="pt-2 border-t">
+              <Link
+                href={`/dashboard/properties/${violation.property_id}`}
+                className="text-xs text-sidebar-accent hover:underline"
+              >
+                View Property Details
+              </Link>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expanded Photo Modal */}
+      <Dialog open={expandedPhoto !== null} onOpenChange={(o) => !o && setExpandedPhoto(null)}>
+        <DialogContent className="max-h-[90vh] max-w-4xl p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Photo</DialogTitle>
+            <DialogDescription>Violation photo</DialogDescription>
+          </DialogHeader>
+          {expandedPhoto && (
+            <img
+              src={expandedPhoto}
+              alt="Violation photo enlarged"
+              className="h-full w-full object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
