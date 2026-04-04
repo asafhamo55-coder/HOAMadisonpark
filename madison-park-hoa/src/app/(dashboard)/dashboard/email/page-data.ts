@@ -1,5 +1,13 @@
 import { createClient } from "@/lib/supabase/server"
 
+export type LetterAttachment = {
+  name: string
+  url: string
+  size: number
+  type: string
+  storagePath: string
+}
+
 export type SentLetter = {
   id: string
   property_id: string
@@ -14,6 +22,7 @@ export type SentLetter = {
   resend_message_id: string | null
   status: string
   created_at: string
+  attachments: LetterAttachment[]
   // Joined
   property_address: string
   sent_by_name: string | null
@@ -119,6 +128,7 @@ export async function getEmailPageData(): Promise<EmailPageData> {
 
   const letters: SentLetter[] = rawLetters.map((l) => ({
     ...l,
+    attachments: (l.attachments as LetterAttachment[]) || [],
     property_address: propertyMap.get(l.property_id)?.address || "Unknown",
     sent_by_name: l.sent_by ? senderNames.get(l.sent_by) || null : null,
   }))
