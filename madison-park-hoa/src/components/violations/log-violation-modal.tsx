@@ -38,7 +38,7 @@ import {
 } from "@/lib/schemas/violation"
 import {
   createViolationAction,
-  uploadViolationPhotos,
+  uploadSingleViolationPhoto,
 } from "@/app/actions/violations"
 
 type PropertyOption = {
@@ -170,18 +170,22 @@ export function LogViolationModal({
 
     setLoading(true)
 
-    // Upload photos first if any
-    let photoKeys: string[] = []
+    // Upload photos one at a time to avoid serverless body size limits
+    const photoKeys: string[] = []
     if (photos.length > 0) {
-      const formData = new FormData()
-      photos.forEach((f) => formData.append("photos", f))
-      const uploadResult = await uploadViolationPhotos(formData)
-      if (uploadResult.error) {
-        toast.error(uploadResult.error)
-        setLoading(false)
-        return
+      for (const photo of photos) {
+        const formData = new FormData()
+        formData.append("photo", photo)
+        const uploadResult = await uploadSingleViolationPhoto(formData)
+        if (uploadResult.error) {
+          toast.error(uploadResult.error)
+          setLoading(false)
+          return
+        }
+        if (uploadResult.key) {
+          photoKeys.push(uploadResult.key)
+        }
       }
-      photoKeys = uploadResult.keys
     }
 
     // Create the violation record

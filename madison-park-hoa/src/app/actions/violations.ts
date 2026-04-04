@@ -53,7 +53,7 @@ export async function uploadViolationPhotos(formData: FormData) {
   const admin = createAdminClient()
   const files = formData.getAll("photos") as File[]
 
-  if (files.length === 0) return { keys: [], error: null }
+  if (files.length === 0) return { keys: [] as string[], error: null }
 
   const uploadedKeys: string[] = []
 
@@ -71,13 +71,40 @@ export async function uploadViolationPhotos(formData: FormData) {
       })
 
     if (error) {
-      return { keys: [], error: `Failed to upload ${file.name}: ${error.message}` }
+      return { keys: [] as string[], error: `Failed to upload ${file.name}: ${error.message}` }
     }
 
     uploadedKeys.push(key)
   }
 
   return { keys: uploadedKeys, error: null }
+}
+
+export async function uploadSingleViolationPhoto(formData: FormData) {
+  const admin = createAdminClient()
+  const file = formData.get("photo") as File | null
+
+  if (!file || !file.size) return { key: "", error: "No file provided" }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return { key: "", error: `${file.name} exceeds 10MB limit` }
+  }
+
+  const ext = file.name.split(".").pop() || "jpg"
+  const key = `violations/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+  const { error } = await admin.storage
+    .from("violations")
+    .upload(key, file, {
+      contentType: file.type,
+      upsert: false,
+    })
+
+  if (error) {
+    return { key: "", error: `Failed to upload ${file.name}: ${error.message}` }
+  }
+
+  return { key, error: null }
 }
 
 export async function updateViolationStatusAction(
