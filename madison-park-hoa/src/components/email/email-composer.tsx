@@ -144,6 +144,9 @@ export function EmailComposer({
 }: EmailComposerProps) {
   // Form state
   const [recipientEmail, setRecipientEmail] = useState(defaultTo)
+  const [cc, setCc] = useState("")
+  const [bcc, setBcc] = useState("")
+  const [showCcBcc, setShowCcBcc] = useState(false)
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [selectedTemplate, setSelectedTemplate] = useState(defaultTemplate)
@@ -189,6 +192,9 @@ export function EmailComposer({
       setResidentId(defaultResidentId)
       setViolationId(defaultViolationId || "")
       setSelectedTemplate(defaultTemplate)
+      setCc("")
+      setBcc("")
+      setShowCcBcc(false)
       setSubject("")
       setBody("")
       setPreviewHtml("")
@@ -408,6 +414,9 @@ export function EmailComposer({
 
     setSending(true)
     const html = await getFinalHtml()
+    const ccList = cc.split(",").map((e) => e.trim()).filter(Boolean)
+    const bccList = bcc.split(",").map((e) => e.trim()).filter(Boolean)
+
     const result = await sendLetter({
       propertyId,
       residentId: residentId || null,
@@ -415,6 +424,8 @@ export function EmailComposer({
       subject,
       bodyHtml: html,
       recipientEmail,
+      cc: ccList.length > 0 ? ccList : undefined,
+      bcc: bccList.length > 0 ? bccList : undefined,
       type: getLetterType(),
       attachments: attachments.length > 0 ? attachments : undefined,
     })
@@ -568,7 +579,18 @@ export function EmailComposer({
                 {/* To + Template Row */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">To (Email) *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">To (Email) *</Label>
+                      {!showCcBcc && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCcBcc(true)}
+                          className="text-[10px] font-medium text-sidebar-accent hover:underline"
+                        >
+                          CC / BCC
+                        </button>
+                      )}
+                    </div>
                     <div className="relative">
                       <Input
                         type="email"
@@ -604,6 +626,45 @@ export function EmailComposer({
                     </Select>
                   </div>
                 </div>
+
+                {/* CC / BCC Row */}
+                {showCcBcc && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">CC</Label>
+                      <Input
+                        type="text"
+                        value={cc}
+                        onChange={(e) => setCc(e.target.value)}
+                        placeholder="email1@example.com, email2@example.com"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">BCC</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCc("")
+                            setBcc("")
+                            setShowCcBcc(false)
+                          }}
+                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          Hide
+                        </button>
+                      </div>
+                      <Input
+                        type="text"
+                        value={bcc}
+                        onChange={(e) => setBcc(e.target.value)}
+                        placeholder="email1@example.com, email2@example.com"
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Subject */}
                 <div className="space-y-1.5">
