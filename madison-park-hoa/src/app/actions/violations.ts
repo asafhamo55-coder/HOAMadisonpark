@@ -107,6 +107,24 @@ export async function uploadSingleViolationPhoto(formData: FormData) {
   return { key, error: null }
 }
 
+export async function getViolationPhotoUrls(photoKeys: string[]) {
+  if (!photoKeys.length) return { urls: [] as string[], error: null }
+
+  const admin = createAdminClient()
+  const urls: string[] = []
+
+  for (const key of photoKeys) {
+    const { data } = await admin.storage
+      .from("violations")
+      .createSignedUrl(key, 3600) // 1 hour
+    if (data?.signedUrl) {
+      urls.push(data.signedUrl)
+    }
+  }
+
+  return { urls, error: null }
+}
+
 export async function updateViolationStatusAction(
   violationId: string,
   status: string
