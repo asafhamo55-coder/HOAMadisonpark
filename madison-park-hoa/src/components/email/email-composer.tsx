@@ -227,11 +227,16 @@ export function EmailComposer({
     const today = format(new Date(), "MMMM d, yyyy")
     const due30 = format(addDays(new Date(), 30), "MMMM d, yyyy")
 
+    // Category = template type label (e.g. "Violation Notice", "Welcome Letter")
+    const templateLabel = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate)?.label || ""
+    // Description = user's additional message, or fallback to violation description
+    const descriptionText = body.trim() || selectedViolation?.description || ""
+
     return {
       residentName: selectedResident?.full_name || "Homeowner",
       propertyAddress: selectedProperty?.address || "",
-      category: selectedViolation?.category || "",
-      description: selectedViolation?.description || "",
+      category: selectedViolation?.category || templateLabel,
+      description: descriptionText,
       reportedDate: selectedViolation?.reported_date
         ? format(new Date(selectedViolation.reported_date), "MMMM d, yyyy")
         : today,
@@ -279,21 +284,7 @@ export function EmailComposer({
         const props = buildTemplateProps()
         const result = await renderTemplatePreview(tmpl, props)
         if (result.html) {
-          // If user added extra message, inject it into the rendered template
-          if (body.trim()) {
-            const extraHtml = `<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e4e4e7;"><p style="font-size:14px;font-weight:600;color:#1e3a5f;margin:0 0 8px;">Additional Message</p><div style="font-size:15px;line-height:24px;color:#27272a;">${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</div></div>`
-            // Insert before the closing footer/hr
-            const insertPoint = result.html.lastIndexOf("<hr")
-            if (insertPoint > -1) {
-              setPreviewHtml(result.html.slice(0, insertPoint) + extraHtml + result.html.slice(insertPoint))
-            } else {
-              // Fallback: insert before closing </div></body>
-              const fallbackPoint = result.html.lastIndexOf("</div>")
-              setPreviewHtml(result.html.slice(0, fallbackPoint) + extraHtml + result.html.slice(fallbackPoint))
-            }
-          } else {
-            setPreviewHtml(result.html)
-          }
+          setPreviewHtml(result.html)
         }
         setPreviewLoading(false)
       }, 500)
@@ -343,19 +334,7 @@ export function EmailComposer({
     if (selectedTemplate !== "custom") {
       const props = buildTemplateProps()
       const result = await renderTemplatePreview(selectedTemplate, props)
-      let html = result.html || wrapCustomBody(resolveVariables(body), subject)
-      // If user added extra message, inject it into the template
-      if (body.trim() && result.html) {
-        const extraHtml = `<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e4e4e7;"><p style="font-size:14px;font-weight:600;color:#1e3a5f;margin:0 0 8px;">Additional Message</p><div style="font-size:15px;line-height:24px;color:#27272a;">${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</div></div>`
-        const insertPoint = html.lastIndexOf("<hr")
-        if (insertPoint > -1) {
-          html = html.slice(0, insertPoint) + extraHtml + html.slice(insertPoint)
-        } else {
-          const fallbackPoint = html.lastIndexOf("</div>")
-          html = html.slice(0, fallbackPoint) + extraHtml + html.slice(fallbackPoint)
-        }
-      }
-      return html
+      return result.html || wrapCustomBody(resolveVariables(body), subject)
     }
     return wrapCustomBody(resolveVariables(body), subject)
   }
@@ -681,7 +660,7 @@ export function EmailComposer({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs">
-                      {selectedTemplate === "custom" ? "Body" : "Additional Message (optional)"}
+                      {selectedTemplate === "custom" ? "Body" : "Description (optional)"}
                     </Label>
                     {selectedTemplate === "custom" && (
                       <span className="text-[10px] text-muted-foreground">
@@ -696,14 +675,14 @@ export function EmailComposer({
                     placeholder={
                       selectedTemplate === "custom"
                         ? "Write your email content here..."
-                        : "Add a personal note or extra details to include with this template..."
+                        : "Enter the description or details for this email..."
                     }
                     rows={selectedTemplate === "custom" ? 12 : 5}
                     className="resize-none text-sm"
                   />
                   {selectedTemplate !== "custom" && body.trim() && (
                     <p className="text-[10px] text-muted-foreground">
-                      Your message will appear in the email below the template content.
+                      This will appear as the description in the email template.
                     </p>
                   )}
                 </div>
