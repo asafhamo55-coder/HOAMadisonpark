@@ -11,6 +11,7 @@ import {
   User,
   Loader2,
   LogOut,
+  UserCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -41,7 +42,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import type { Resident } from "../detail-data"
-import { addResident, updateResident, moveOutResident } from "../actions"
+import { addResident, updateResident, moveOutResident, restoreResident } from "../actions"
 
 const RELATIONSHIPS = [
   "Primary Owner",
@@ -124,33 +125,12 @@ export function ResidentsTab({
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 pt-2">
             {formerResidents.map((r) => (
-              <Card key={r.id} className="opacity-60">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
-                        {r.first_name && r.last_name
-                          ? `${r.first_name} ${r.last_name}`
-                          : r.full_name}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ${relationshipColors[r.relationship] || relationshipColors.Other}`}
-                      >
-                        {r.relationship || r.type}
-                      </Badge>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {r.move_in_date &&
-                        format(new Date(r.move_in_date), "MMM yyyy")}
-                      {r.move_in_date && r.move_out_date && " — "}
-                      {r.move_out_date &&
-                        format(new Date(r.move_out_date), "MMM yyyy")}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+              <FormerResidentCard
+                key={r.id}
+                resident={r}
+                propertyId={propertyId}
+                canManage={canManage}
+              />
             ))}
           </CollapsibleContent>
         </Collapsible>
@@ -281,6 +261,79 @@ function ResidentCard({
         resident={resident}
       />
     </>
+  )
+}
+
+function FormerResidentCard({
+  resident,
+  propertyId,
+  canManage,
+}: {
+  resident: Resident
+  propertyId: string
+  canManage: boolean
+}) {
+  const [restoring, setRestoring] = useState(false)
+
+  async function handleRestore() {
+    if (!confirm("Restore this resident as a current resident?")) return
+    setRestoring(true)
+    const result = await restoreResident(resident.id, propertyId)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success(`${resident.first_name || resident.full_name} restored as current resident`)
+    }
+    setRestoring(false)
+  }
+
+  return (
+    <Card className="opacity-60">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">
+              {resident.first_name && resident.last_name
+                ? `${resident.first_name} ${resident.last_name}`
+                : resident.full_name}
+            </span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] ${relationshipColors[resident.relationship] || relationshipColors.Other}`}
+            >
+              {resident.relationship || resident.type}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {resident.move_in_date &&
+                format(new Date(resident.move_in_date), "MMM yyyy")}
+              {resident.move_in_date && resident.move_out_date && " — "}
+              {resident.move_out_date &&
+                format(new Date(resident.move_out_date), "MMM yyyy")}
+            </span>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                onClick={handleRestore}
+                disabled={restoring}
+                title="Restore as current resident"
+              >
+                {restoring ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <UserCheck className="mr-1 h-3 w-3" />
+                )}
+                Restore
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

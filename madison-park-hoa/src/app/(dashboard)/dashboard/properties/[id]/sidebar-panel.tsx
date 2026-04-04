@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { PropertyDetail } from "./detail-data"
-import { updatePropertyStatus } from "./actions"
+import { updatePropertyStatus, updatePropertyOccupancyType } from "./actions"
 
 const statusConfig: Record<
   string,
@@ -88,6 +88,7 @@ export function SidebarPanel({
 }) {
   const { property, currentResidents } = data
   const [status, setStatus] = useState(property.status)
+  const [occupancyType, setOccupancyType] = useState(property.occupancy_type || "owner_occupied")
 
   const score = computeComplianceScore(data)
   const scoreColor = getScoreColor(score)
@@ -111,6 +112,17 @@ export function SidebarPanel({
       setStatus(property.status)
     } else {
       toast.success("Status updated")
+    }
+  }
+
+  async function handleOccupancyChange(newType: string) {
+    setOccupancyType(newType as typeof occupancyType)
+    const result = await updatePropertyOccupancyType(property.id, newType)
+    if (result.error) {
+      toast.error(result.error)
+      setOccupancyType(property.occupancy_type || "owner_occupied")
+    } else {
+      toast.success("Occupancy type updated")
     }
   }
 
@@ -165,6 +177,31 @@ export function SidebarPanel({
               )}
             >
               {statusConfig[property.status]?.label || property.status}
+            </Badge>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Occupancy
+          </label>
+          {canManage ? (
+            <Select value={occupancyType} onValueChange={handleOccupancyChange}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="owner_occupied">Owner Occupied</SelectItem>
+                <SelectItem value="rental">Rental</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Badge variant="outline" className={cn(
+              occupancyType === "rental"
+                ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+            )}>
+              {occupancyType === "rental" ? "Rental" : "Owner Occupied"}
             </Badge>
           )}
         </div>

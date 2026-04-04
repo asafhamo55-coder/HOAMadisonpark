@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
-import type { ViolationByCategory, ViolationByMonth } from "./dashboard-data"
+import type { ViolationByCategory, ViolationByMonth, OccupancyBreakdown } from "./dashboard-data"
 
 const COLORS = [
   "#3b82f6",
@@ -71,6 +71,65 @@ export function ViolationsCategoryChart({
           formatter={(value: any, name: any) => [
             value,
             formatCategory(String(name)),
+          ]}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+const OCCUPANCY_COLORS: Record<string, string> = {
+  owner_occupied: "#10b981",
+  rental: "#3b82f6",
+}
+
+const OCCUPANCY_LABELS: Record<string, string> = {
+  owner_occupied: "Owner Occupied",
+  rental: "Rental",
+}
+
+export function OccupancyChart({ data }: { data: OccupancyBreakdown[] }) {
+  if (data.length === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        No occupancy data yet.
+      </p>
+    )
+  }
+
+  const total = data.reduce((sum, d) => sum + d.count, 0)
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <PieChart>
+        <Pie
+          data={data}
+          dataKey="count"
+          nameKey="type"
+          cx="50%"
+          cy="50%"
+          innerRadius={50}
+          outerRadius={90}
+          paddingAngle={2}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          label={(props: any) => {
+            const pct = total > 0 ? Math.round((props.value / total) * 100) : 0
+            return `${OCCUPANCY_LABELS[props.name] || props.name} (${pct}%)`
+          }}
+          labelLine={false}
+        >
+          {data.map((entry) => (
+            <Cell
+              key={entry.type}
+              fill={OCCUPANCY_COLORS[entry.type] || "#94a3b8"}
+            />
+          ))}
+        </Pie>
+        <Tooltip
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          formatter={(value: any, name: any) => [
+            `${value} properties`,
+            OCCUPANCY_LABELS[String(name)] || String(name),
           ]}
         />
       </PieChart>

@@ -159,6 +159,58 @@ export async function moveOutResident(
   return { error: null }
 }
 
+export async function restoreResident(
+  residentId: string,
+  propertyId: string
+) {
+  const supabase = createClient()
+
+  const data: Record<string, unknown> = {
+    is_current: true,
+    move_out_date: null,
+  }
+
+  // Try to set new status column
+  try {
+    const testResult = await supabase
+      .from("residents")
+      .select("status")
+      .limit(0)
+    if (!testResult.error) {
+      data.status = "active"
+    }
+  } catch {
+    // New column not available yet, skip
+  }
+
+  const { error } = await supabase
+    .from("residents")
+    .update(data)
+    .eq("id", residentId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/properties/${propertyId}`)
+  revalidatePath("/dashboard/properties")
+  return { error: null }
+}
+
+export async function updatePropertyOccupancyType(
+  propertyId: string,
+  occupancyType: string
+) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("properties")
+    .update({ occupancy_type: occupancyType })
+    .eq("id", propertyId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/properties/${propertyId}`)
+  revalidatePath("/dashboard/properties")
+  revalidatePath("/dashboard")
+  return { error: null }
+}
+
 export async function recordPayment(formData: FormData) {
   const supabase = createClient()
 

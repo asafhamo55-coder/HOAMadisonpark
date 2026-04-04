@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ViolationsCategoryChart,
   ViolationsMonthChart,
+  OccupancyChart,
 } from "./dashboard-charts"
 import type { AdminDashboardData } from "./dashboard-data"
 
@@ -96,7 +97,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
       </div>
 
       {/* ── Row 2: Charts ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
@@ -115,6 +116,16 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           </CardHeader>
           <CardContent>
             <ViolationsMonthChart data={data.violationsByMonth} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              Owner vs. Rental
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OccupancyChart data={data.occupancyBreakdown} />
           </CardContent>
         </Card>
       </div>

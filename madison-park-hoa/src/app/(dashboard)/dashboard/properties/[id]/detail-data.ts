@@ -89,6 +89,7 @@ export type Property = {
   state: string | null
   country: string | null
   property_type: string | null
+  occupancy_type: "owner_occupied" | "rental"
   status: "occupied" | "vacant" | "foreclosure" | "rental"
   notes: string | null
   created_at: string
@@ -156,6 +157,7 @@ function normalizeProperty(p: Record<string, unknown>): Property {
     state: (p.state as string) ?? null,
     country: (p.country as string) ?? "USA",
     property_type: (p.property_type as string) ?? "Single Family",
+    occupancy_type: (p.occupancy_type as Property["occupancy_type"]) || "owner_occupied",
     status: (p.status as Property["status"]) || "occupied",
     notes: (p.notes as string) ?? null,
     created_at: p.created_at as string,
