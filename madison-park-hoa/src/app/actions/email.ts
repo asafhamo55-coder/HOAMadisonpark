@@ -117,6 +117,8 @@ export async function sendLetter({
   subject,
   bodyHtml,
   recipientEmail,
+  cc,
+  bcc,
   type,
   attachments,
 }: {
@@ -126,6 +128,8 @@ export async function sendLetter({
   subject: string
   bodyHtml: string
   recipientEmail: string
+  cc?: string[]
+  bcc?: string[]
   type: string
   attachments?: AttachmentMeta[]
 }) {
@@ -163,6 +167,8 @@ export async function sendLetter({
     const result = await getResend().emails.send({
       from: getFromAddress(),
       to: [recipientEmail],
+      ...(cc?.length && { cc }),
+      ...(bcc?.length && { bcc }),
       subject,
       html: bodyHtml,
       ...(resendAttachments.length > 0 && { attachments: resendAttachments }),
