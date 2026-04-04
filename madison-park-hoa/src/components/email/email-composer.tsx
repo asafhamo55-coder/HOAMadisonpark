@@ -15,8 +15,6 @@ import {
   X,
   Image as ImageIcon,
   File as FileIcon,
-  PencilLine,
-  Undo2,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -153,10 +151,6 @@ export function EmailComposer({
   const [residentId, setResidentId] = useState(defaultResidentId)
   const [violationId, setViolationId] = useState(defaultViolationId || "")
 
-  // Template editing state
-  const [isEditingTemplate, setIsEditingTemplate] = useState(false)
-  const [templateHtmlOverride, setTemplateHtmlOverride] = useState("")
-
   // Attachments state
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [uploading, setUploading] = useState(false)
@@ -198,8 +192,6 @@ export function EmailComposer({
       setSubject("")
       setBody("")
       setPreviewHtml("")
-      setIsEditingTemplate(false)
-      setTemplateHtmlOverride("")
       setAttachments([])
 
       // Auto-fill recipient email from default resident
@@ -254,36 +246,14 @@ export function EmailComposer({
     }
   }
 
-  // When template changes, auto-fill subject and reset edit mode
+  // When template changes, auto-fill subject
   function handleTemplateChange(value: string) {
     setSelectedTemplate(value)
-    setIsEditingTemplate(false)
-    setTemplateHtmlOverride("")
     if (value !== "custom" && TEMPLATE_SUBJECTS[value]) {
       setSubject(TEMPLATE_SUBJECTS[value])
     }
     // Trigger preview refresh
     requestPreview(value)
-  }
-
-  // Enable template editing mode
-  async function handleEditTemplate() {
-    if (selectedTemplate === "custom") return
-
-    // Render the template to HTML first
-    const props = buildTemplateProps()
-    const result = await renderTemplatePreview(selectedTemplate, props)
-    if (result.html) {
-      setTemplateHtmlOverride(result.html)
-      setIsEditingTemplate(true)
-    }
-  }
-
-  // Revert template edits
-  function handleRevertTemplate() {
-    setIsEditingTemplate(false)
-    setTemplateHtmlOverride("")
-    requestPreview()
   }
 
   // Debounced preview generation
@@ -295,14 +265,7 @@ export function EmailComposer({
         const tmpl = templateOverride ?? selectedTemplate
 
         if (tmpl === "custom") {
-          // For custom, wrap body in minimal HTML
           setPreviewHtml(wrapCustomBody(body, subject))
-          return
-        }
-
-        // If user is editing template HTML, use their version
-        if (isEditingTemplate && templateHtmlOverride && !templateOverride) {
-          setPreviewHtml(templateHtmlOverride)
           return
         }
 
@@ -310,29 +273,33 @@ export function EmailComposer({
         const props = buildTemplateProps()
         const result = await renderTemplatePreview(tmpl, props)
         if (result.html) {
-          setPreviewHtml(result.html)
+          // If user added extra message, inject it into the rendered template
+          if (body.trim()) {
+            const extraHtml = `<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e4e4e7;"><p style="font-size:14px;font-weight:600;color:#1e3a5f;margin:0 0 8px;">Additional Message</p><div style="font-size:15px;line-height:24px;color:#27272a;">${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</div></div>`
+            // Insert before the closing footer/hr
+            const insertPoint = result.html.lastIndexOf("<hr")
+            if (insertPoint > -1) {
+              setPreviewHtml(result.html.slice(0, insertPoint) + extraHtml + result.html.slice(insertPoint))
+            } else {
+              // Fallback: insert before closing </div></body>
+              const fallbackPoint = result.html.lastIndexOf("</div>")
+              setPreviewHtml(result.html.slice(0, fallbackPoint) + extraHtml + result.html.slice(fallbackPoint))
+            }
+          } else {
+            setPreviewHtml(result.html)
+          }
         }
         setPreviewLoading(false)
       }, 500)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedTemplate, body, subject, propertyId, residentId, violationId, isEditingTemplate, templateHtmlOverride]
+    [selectedTemplate, body, subject, propertyId, residentId, violationId]
   )
 
   // Trigger preview on content changes
   useEffect(() => {
     if (open) requestPreview()
   }, [open, body, subject, selectedTemplate, propertyId, residentId, violationId, requestPreview])
-
-  // Update preview when template HTML override changes
-  useEffect(() => {
-    if (isEditingTemplate && templateHtmlOverride) {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => {
-        setPreviewHtml(templateHtmlOverride)
-      }, 500)
-    }
-  }, [isEditingTemplate, templateHtmlOverride])
 
   // Insert variable at cursor in body
   function insertVariable(key: string) {
@@ -367,15 +334,22 @@ export function EmailComposer({
 
   // Get the HTML to send/save
   async function getFinalHtml(): Promise<string> {
-    // If user edited the template HTML, use their version
-    if (isEditingTemplate && templateHtmlOverride) {
-      return templateHtmlOverride
-    }
-
     if (selectedTemplate !== "custom") {
       const props = buildTemplateProps()
       const result = await renderTemplatePreview(selectedTemplate, props)
-      return result.html || wrapCustomBody(resolveVariables(body), subject)
+      let html = result.html || wrapCustomBody(resolveVariables(body), subject)
+      // If user added extra message, inject it into the template
+      if (body.trim() && result.html) {
+        const extraHtml = `<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e4e4e7;"><p style="font-size:14px;font-weight:600;color:#1e3a5f;margin:0 0 8px;">Additional Message</p><div style="font-size:15px;line-height:24px;color:#27272a;">${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</div></div>`
+        const insertPoint = html.lastIndexOf("<hr")
+        if (insertPoint > -1) {
+          html = html.slice(0, insertPoint) + extraHtml + html.slice(insertPoint)
+        } else {
+          const fallbackPoint = html.lastIndexOf("</div>")
+          html = html.slice(0, fallbackPoint) + extraHtml + html.slice(fallbackPoint)
+        }
+      }
+      return html
     }
     return wrapCustomBody(resolveVariables(body), subject)
   }
@@ -642,110 +616,78 @@ export function EmailComposer({
                   />
                 </div>
 
-                {/* Body (for custom or override) */}
+                {/* Body — always visible */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">
+                      {selectedTemplate === "custom" ? "Body" : "Additional Message (optional)"}
+                    </Label>
+                    {selectedTemplate === "custom" && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Use {"{{variables}}"} for dynamic content
+                      </span>
+                    )}
+                  </div>
+                  <Textarea
+                    ref={bodyRef}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder={
+                      selectedTemplate === "custom"
+                        ? "Write your email content here..."
+                        : "Add a personal note or extra details to include with this template..."
+                    }
+                    rows={selectedTemplate === "custom" ? 12 : 5}
+                    className="resize-none text-sm"
+                  />
+                  {selectedTemplate !== "custom" && body.trim() && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Your message will appear in the email below the template content.
+                    </p>
+                  )}
+                </div>
+
+                {/* Variable Helper — only for custom */}
                 {selectedTemplate === "custom" && (
-                  <>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">Body</Label>
-                        <span className="text-[10px] text-muted-foreground">
-                          Use {"{{variables}}"} for dynamic content
-                        </span>
-                      </div>
-                      <Textarea
-                        ref={bodyRef}
-                        value={body}
-                        onChange={(e) => setBody(e.target.value)}
-                        placeholder="Write your email content here..."
-                        rows={12}
-                        className="resize-none font-mono text-sm"
-                      />
-                    </div>
-
-                    {/* Variable Helper */}
-                    <div className="space-y-1.5">
-                      <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Braces className="h-3 w-3" />
-                        Insert Variable
-                      </Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {VARIABLES.map((v) => (
-                          <button
-                            key={v.key}
-                            type="button"
-                            onClick={() => insertVariable(v.key)}
-                            className="rounded-md border bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          >
-                            {v.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Template info + edit button */}
-                {selectedTemplate !== "custom" && !isEditingTemplate && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <FileText className="mt-0.5 h-4 w-4 text-blue-600" />
-                        <div>
-                          <p className="text-sm font-medium text-blue-900">
-                            Using{" "}
-                            {TEMPLATE_OPTIONS.find(
-                              (t) => t.value === selectedTemplate
-                            )?.label}{" "}
-                            template
-                          </p>
-                          <p className="mt-0.5 text-xs text-blue-700">
-                            The template will be auto-filled with data from the
-                            selected property, resident, and violation. Preview
-                            updates live on the right.
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
-                        onClick={handleEditTemplate}
-                      >
-                        <PencilLine className="mr-1 h-3 w-3" />
-                        Edit Template
-                      </Button>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Braces className="h-3 w-3" />
+                      Insert Variable
+                    </Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {VARIABLES.map((v) => (
+                        <button
+                          key={v.key}
+                          type="button"
+                          onClick={() => insertVariable(v.key)}
+                          className="rounded-md border bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {v.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Template HTML editor (when editing) */}
-                {selectedTemplate !== "custom" && isEditingTemplate && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="flex items-center gap-1.5 text-xs">
-                        <PencilLine className="h-3 w-3 text-amber-600" />
-                        <span className="text-amber-700">Editing Template HTML</span>
-                      </Label>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-muted-foreground"
-                        onClick={handleRevertTemplate}
-                      >
-                        <Undo2 className="mr-1 h-3 w-3" />
-                        Revert to Original
-                      </Button>
-                    </div>
-                    <div className="rounded-md border border-amber-200 bg-amber-50/30 p-2">
-                      <p className="mb-2 text-[11px] text-amber-700">
-                        You can modify the template HTML below. Changes apply only to this email and won&apos;t affect the saved template.
-                      </p>
-                      <Textarea
-                        value={templateHtmlOverride}
-                        onChange={(e) => setTemplateHtmlOverride(e.target.value)}
-                        rows={14}
-                        className="resize-none font-mono text-xs bg-white"
-                      />
+                {/* Template info */}
+                {selectedTemplate !== "custom" && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3">
+                    <div className="flex items-start gap-2">
+                      <FileText className="mt-0.5 h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-900">
+                          Using{" "}
+                          {TEMPLATE_OPTIONS.find(
+                            (t) => t.value === selectedTemplate
+                          )?.label}{" "}
+                          template
+                        </p>
+                        <p className="mt-0.5 text-xs text-blue-700">
+                          The template will be auto-filled with data from the
+                          selected property, resident, and violation. Preview
+                          updates live on the right.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
