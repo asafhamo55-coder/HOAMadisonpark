@@ -3,6 +3,7 @@ import { z } from "zod"
 export const VIOLATION_CATEGORIES = [
   "Landscaping",
   "Parking",
+  "Vehicles/Parking",
   "Noise",
   "Trash",
   "Exterior",
@@ -12,6 +13,10 @@ export const VIOLATION_CATEGORIES = [
   "Fence/Wall",
   "Holiday Decorations",
   "Unapproved Modification",
+  "Drainage",
+  "Trees",
+  "Leasing Violation",
+  "Swimming Pool",
   "Other",
 ] as const
 
