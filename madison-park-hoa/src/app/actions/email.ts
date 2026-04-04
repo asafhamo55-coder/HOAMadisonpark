@@ -66,10 +66,15 @@ export async function uploadEmailAttachment(
     .from("email-attachments")
     .getPublicUrl(storagePath)
 
+  // Also create a signed URL for Resend to download (bucket is private)
+  const { data: signedData } = await admin.storage
+    .from("email-attachments")
+    .createSignedUrl(storagePath, 3600) // 1 hour expiry
+
   return {
     attachment: {
       name: file.name,
-      url: publicUrl,
+      url: signedData?.signedUrl || publicUrl,
       size: file.size,
       type: file.type,
       storagePath,
@@ -129,14 +134,25 @@ export async function sendLetter({
 
   if (!user) return { error: "Unauthorized" }
 
-  // Build Resend attachments from uploaded files
-  const resendAttachments: { filename: string; path: string }[] = []
+  // Build Resend attachments by downloading file content from storage
+  const resendAttachments: { filename: string; content: Buffer }[] = []
   if (attachments?.length) {
+    const admin = createAdminClient()
     for (const att of attachments) {
-      resendAttachments.push({
-        filename: att.name,
-        path: att.url,
-      })
+      try {
+        const { data, error } = await admin.storage
+          .from("email-attachments")
+          .download(att.storagePath)
+        if (!error && data) {
+          const arrayBuffer = await data.arrayBuffer()
+          resendAttachments.push({
+            filename: att.name,
+            content: Buffer.from(arrayBuffer),
+          })
+        }
+      } catch {
+        // Skip attachment if download fails
+      }
     }
   }
 
