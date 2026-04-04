@@ -114,9 +114,13 @@ export async function getViolationPhotoUrls(photoKeys: string[]) {
   const urls: string[] = []
 
   for (const key of photoKeys) {
-    const { data } = await admin.storage
+    const { data, error } = await admin.storage
       .from("violations")
       .createSignedUrl(key, 3600) // 1 hour
+    if (error) {
+      console.error(`Failed to create signed URL for ${key}:`, error.message)
+      continue
+    }
     if (data?.signedUrl) {
       urls.push(data.signedUrl)
     }
@@ -134,6 +138,8 @@ export async function updateViolationStatusAction(
   const updates: Record<string, unknown> = { status }
   if (status === "resolved") {
     updates.resolved_date = new Date().toISOString().split("T")[0]
+  } else {
+    updates.resolved_date = null
   }
 
   const { error } = await supabase

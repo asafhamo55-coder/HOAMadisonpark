@@ -70,6 +70,7 @@ import {
   resolveViolationAction,
   addFineAction,
   getViolationPhotoUrls,
+  updateViolationStatusAction,
 } from "@/app/actions/violations"
 import { LogViolationModal } from "@/components/violations/log-violation-modal"
 
@@ -884,6 +885,7 @@ function ViolationDetailDialog({
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [loadingPhotos, setLoadingPhotos] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [changingStatus, setChangingStatus] = useState(false)
 
   useEffect(() => {
     if (violation?.photos?.length) {
@@ -896,6 +898,19 @@ function ViolationDetailDialog({
       setPhotoUrls([])
     }
   }, [violation])
+
+  async function handleStatusChange(newStatus: string) {
+    if (!violation) return
+    setChangingStatus(true)
+    const result = await updateViolationStatusAction(violation.id, newStatus)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success(`Status changed to ${newStatus.replace(/_/g, " ")}`)
+      onClose()
+    }
+    setChangingStatus(false)
+  }
 
   if (!violation) return null
 
@@ -917,13 +932,36 @@ function ViolationDetailDialog({
 
           <div className="space-y-4">
             {/* Status & Severity */}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={cn("text-xs", statusCfg)}>
-                {violation.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-              </Badge>
-              <Badge variant="outline" className={cn("text-xs", severityColors[violation.severity])}>
-                {violation.severity.charAt(0).toUpperCase() + violation.severity.slice(1)}
-              </Badge>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className={cn("text-xs", statusCfg)}>
+                  {violation.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </Badge>
+                <Badge variant="outline" className={cn("text-xs", severityColors[violation.severity])}>
+                  {violation.severity.charAt(0).toUpperCase() + violation.severity.slice(1)}
+                </Badge>
+              </div>
+              <Select
+                value={violation.status}
+                onValueChange={handleStatusChange}
+                disabled={changingStatus}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs">
+                  {changingStatus ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <SelectValue placeholder="Change status..." />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="notice_sent">Notice Sent</SelectItem>
+                  <SelectItem value="warning_sent">Warning Sent</SelectItem>
+                  <SelectItem value="fine_issued">Fine Issued</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="dismissed">Dismissed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Description */}
@@ -993,6 +1031,7 @@ function ViolationDetailDialog({
                       onClick={() => setExpandedPhoto(url)}
                       className="group relative aspect-square overflow-hidden rounded-lg border bg-muted/30 hover:border-sidebar-accent transition-colors"
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={url}
                         alt={`Violation photo ${i + 1}`}
@@ -1030,6 +1069,7 @@ function ViolationDetailDialog({
             <DialogDescription>Violation photo</DialogDescription>
           </DialogHeader>
           {expandedPhoto && (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={expandedPhoto}
               alt="Violation photo enlarged"
