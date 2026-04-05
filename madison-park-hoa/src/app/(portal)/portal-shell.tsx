@@ -27,6 +27,7 @@ const NAV_ITEMS = [
 export function PortalShell({
   user,
   children,
+  isPreview = false,
 }: {
   user: {
     full_name: string | null
@@ -34,6 +35,7 @@ export function PortalShell({
     avatar_url: string | null
   }
   children: React.ReactNode
+  isPreview?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -52,8 +54,26 @@ export function PortalShell({
     .slice(0, 2)
     .toUpperCase()
 
+  function exitPreview() {
+    document.cookie = "portal_preview=; path=/; max-age=0"
+    window.location.href = "/dashboard"
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
+      {/* Preview Banner */}
+      {isPreview && (
+        <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-white">
+          <span>Previewing as Resident</span>
+          <button
+            onClick={exitPreview}
+            className="rounded bg-white/20 px-3 py-0.5 text-xs font-semibold hover:bg-white/30 transition-colors"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
