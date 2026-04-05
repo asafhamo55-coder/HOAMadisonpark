@@ -1,7 +1,8 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { Menu } from "lucide-react"
+import Link from "next/link"
+import { Menu, Eye } from "lucide-react"
 
 import { pageTitles } from "@/components/dashboard/nav-config"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -56,6 +57,14 @@ export function Header({
       <h1 className="text-lg font-semibold md:text-xl">{title}</h1>
 
       <div className="ml-auto flex items-center gap-3">
+        {/* View as Resident */}
+        <Link href="/api/portal-preview">
+          <Button variant="outline" size="sm" className="hidden sm:flex h-8 text-xs gap-1.5">
+            <Eye className="h-3.5 w-3.5" />
+            View as Resident
+          </Button>
+        </Link>
+
         {/* Global search */}
         <GlobalSearch />
 

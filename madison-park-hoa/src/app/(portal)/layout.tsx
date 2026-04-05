@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 import { getCurrentUser } from "@/lib/auth"
 import { PortalShell } from "./portal-shell"
 
@@ -13,8 +14,12 @@ export default async function PortalLayout({
     redirect("/login")
   }
 
-  // Non-residents should use the admin dashboard
-  if (user.role !== "resident") {
+  // Allow admin/board to preview portal via cookie
+  const cookieStore = cookies()
+  const previewMode = cookieStore.get("portal_preview")?.value === "true"
+
+  // Non-residents should use the admin dashboard (unless previewing)
+  if (user.role !== "resident" && !previewMode) {
     redirect("/dashboard")
   }
 
@@ -25,6 +30,7 @@ export default async function PortalLayout({
         email: user.email,
         avatar_url: user.avatar_url,
       }}
+      isPreview={previewMode && user.role !== "resident"}
     >
       {children}
     </PortalShell>
