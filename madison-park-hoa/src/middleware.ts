@@ -5,14 +5,11 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // Skip auth checks if Supabase is not configured
   if (!supabaseUrl || !supabaseKey) {
     return NextResponse.next()
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -26,9 +23,7 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -37,14 +32,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh the session on every request
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
-  // Redirect unauthenticated users away from protected routes
+  // Unauthenticated users: redirect away from protected routes
   if (
     !user &&
     (pathname.startsWith("/dashboard") || pathname.startsWith("/portal"))
@@ -54,32 +48,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
-  // Residents go to /portal, everyone else goes to /dashboard
+  // Authenticated users on login/reset: redirect to dashboard
+  // The portal layout handles role-based redirects internally
   if (user && (pathname === "/login" || pathname === "/reset-password")) {
     const url = request.nextUrl.clone()
-
-    // Check user role to determine redirect target
-    const supabaseAdmin = createServerClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll() {},
-        },
-      }
-    )
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    url.pathname =
-      profile?.role === "resident" ? "/portal" : "/dashboard"
+    url.pathname = "/dashboard"
     return NextResponse.redirect(url)
   }
 
@@ -88,12 +61,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|auth/callback|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|css)$).*)",
   ],
 }
