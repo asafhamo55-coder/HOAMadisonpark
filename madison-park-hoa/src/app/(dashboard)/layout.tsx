@@ -13,6 +13,11 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
+  // Residents should use the portal
+  if (user.role === "resident") {
+    redirect("/portal")
+  }
+
   return (
     <AppShell
       user={{
