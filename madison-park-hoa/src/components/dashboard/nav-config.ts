@@ -9,6 +9,7 @@ import {
   CreditCard,
   Settings,
   BookOpen,
+  Key,
   type LucideIcon,
 } from "lucide-react"
 
@@ -61,6 +62,11 @@ export const navItems: NavItem[] = [
     icon: CreditCard,
   },
   {
+    title: "Leasing",
+    href: "/dashboard/leasing",
+    icon: Key,
+  },
+  {
     title: "Rules & Guidelines",
     href: "/dashboard/rules",
     icon: BookOpen,
@@ -83,6 +89,7 @@ export const pageTitles: Record<string, string> = {
   "/dashboard/announcements": "Announcements",
   "/dashboard/documents": "Documents",
   "/dashboard/payments": "Payments",
+  "/dashboard/leasing": "Leasing Management",
   "/dashboard/rules": "Rules & Guidelines",
   "/dashboard/settings": "Settings",
 }
