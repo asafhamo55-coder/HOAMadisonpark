@@ -43,17 +43,18 @@ type SectionConfig = {
   title: string
   icon: React.ElementType
   color: string
+  iconBg: string
   keywords: string[]
   content: React.ReactNode
 }
 
 function BulletList({ items }: { items: string[] }) {
   return (
-    <ul className="space-y-1.5 text-sm text-gray-700">
+    <ul className="space-y-2 text-sm text-slate-700">
       {items.map((item, i) => (
-        <li key={i} className="flex gap-2">
-          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
-          <span>{item}</span>
+        <li key={i} className="flex gap-2.5">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+          <span className="leading-relaxed">{item}</span>
         </li>
       ))}
     </ul>
@@ -62,9 +63,9 @@ function BulletList({ items }: { items: string[] }) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-gray-100 py-2 last:border-0">
-      <span className="text-sm font-medium text-gray-600">{label}</span>
-      <span className="text-sm text-right text-gray-900">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <span className="text-sm text-right font-medium text-[#0f172a]">{value}</span>
     </div>
   )
 }
@@ -72,7 +73,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+      <h4 className="text-sm font-semibold text-[#0f172a]">{title}</h4>
       {children}
     </div>
   )
@@ -96,13 +97,14 @@ export function RulesView() {
       id: "community",
       title: "Community Overview",
       icon: MapPin,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-blue-600",
+      iconBg: "from-blue-500 to-indigo-600",
       keywords: ["community", "location", "streets", "address", "madison park"],
       content: (
         <div className="space-y-4">
           <SubSection title="Association">
-            <p className="text-sm text-gray-700">{communityInfo.association_name}</p>
-            <p className="text-sm text-gray-500">{communityInfo.association_type}</p>
+            <p className="text-sm text-slate-700">{communityInfo.association_name}</p>
+            <p className="text-sm text-slate-500">{communityInfo.association_type}</p>
           </SubSection>
           <SubSection title="Location">
             <InfoRow label="City" value={communityInfo.location.city} />
@@ -125,7 +127,8 @@ export function RulesView() {
       id: "maintenance",
       title: "Homeowner Responsibilities",
       icon: Home,
-      color: "text-emerald-600 bg-emerald-50",
+      color: "text-emerald-600",
+      iconBg: "from-emerald-500 to-teal-600",
       keywords: ["maintenance", "lawn", "yard", "repair", "trash", "landscaping", "driveway"],
       content: (
         <div className="space-y-4">
@@ -135,8 +138,8 @@ export function RulesView() {
           <SubSection title="Association Maintains">
             <BulletList items={maintenance.association_responsibilities} />
           </SubSection>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5">
+            <p className="text-sm leading-relaxed text-amber-800">
               <strong>Cure Period:</strong> {maintenance.owner_cure_period_days} days to fix issues after notice. {maintenance.self_help}
             </p>
           </div>
@@ -147,21 +150,22 @@ export function RulesView() {
       id: "architectural",
       title: "Architectural Standards",
       icon: Hammer,
-      color: "text-purple-600 bg-purple-50",
+      color: "text-purple-600",
+      iconBg: "from-purple-500 to-violet-600",
       keywords: ["architectural", "arc", "approval", "construction", "modification", "exterior", "color", "paint"],
       content: (
         <div className="space-y-4">
-          <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-            <p className="text-sm text-purple-800">{architecturalStandards.scope}</p>
+          <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-3.5">
+            <p className="text-sm leading-relaxed text-purple-800">{architecturalStandards.scope}</p>
           </div>
           <SubSection title="What Needs Approval">
-            <p className="text-sm text-gray-700">{architecturalStandards.interior_visibility}</p>
+            <p className="text-sm text-slate-700">{architecturalStandards.interior_visibility}</p>
           </SubSection>
           <SubSection title="Exemptions (No Approval Needed)">
             <BulletList items={architecturalStandards.exemptions} />
           </SubSection>
           <SubSection title="Submission Requirements">
-            <p className="text-sm text-gray-700">{architecturalStandards.submittal_requirements}</p>
+            <p className="text-sm text-slate-700">{architecturalStandards.submittal_requirements}</p>
           </SubSection>
           <SubSection title="Timeline">
             <InfoRow label="Deemed approved if no response" value={`${architecturalStandards.deemed_approval_if_no_response_days} days`} />
@@ -174,7 +178,8 @@ export function RulesView() {
       id: "fencing",
       title: "Fence Guidelines",
       icon: Fence,
-      color: "text-orange-600 bg-orange-50",
+      color: "text-orange-600",
+      iconBg: "from-orange-500 to-amber-600",
       keywords: ["fence", "fencing", "gate", "aluminum", "rear yard"],
       content: (
         <div className="space-y-4">
@@ -202,12 +207,13 @@ export function RulesView() {
       id: "vehicles",
       title: "Vehicles & Parking",
       icon: Car,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-blue-600",
+      iconBg: "from-blue-500 to-sky-600",
       keywords: ["vehicle", "parking", "garage", "car", "truck", "tow", "rv", "commercial", "driveway"],
       content: (
         <div className="space-y-4">
           <SubSection title="Where to Park">
-            <p className="text-sm text-gray-700">{vehiclesAndParking.authorized_areas}</p>
+            <p className="text-sm text-slate-700">{vehiclesAndParking.authorized_areas}</p>
           </SubSection>
           <SubSection title="Garage Rules">
             <BulletList items={vehiclesAndParking.garage_rules} />
@@ -219,8 +225,8 @@ export function RulesView() {
             <InfoRow label="Towing notice" value={`${vehiclesAndParking.towing_notice_hours} hours`} />
           </SubSection>
           <SubSection title="Commercial Vehicles">
-            <p className="text-sm text-gray-700">{vehiclesAndParking.commercial_vehicles.definition}</p>
-            <p className="mt-1 text-sm text-gray-600"><strong>Exception:</strong> {vehiclesAndParking.commercial_vehicles.exception}</p>
+            <p className="text-sm text-slate-700">{vehiclesAndParking.commercial_vehicles.definition}</p>
+            <p className="mt-1 text-sm text-slate-600"><strong>Exception:</strong> {vehiclesAndParking.commercial_vehicles.exception}</p>
           </SubSection>
         </div>
       ),
@@ -229,7 +235,8 @@ export function RulesView() {
       id: "pets",
       title: "Pets & Animals",
       icon: PawPrint,
-      color: "text-pink-600 bg-pink-50",
+      color: "text-pink-600",
+      iconBg: "from-pink-500 to-rose-600",
       keywords: ["pet", "dog", "cat", "animal", "leash", "noise", "fecal"],
       content: (
         <div className="space-y-4">
@@ -252,12 +259,13 @@ export function RulesView() {
       id: "signs",
       title: "Signs & Displays",
       icon: SignpostBig,
-      color: "text-amber-600 bg-amber-50",
+      color: "text-amber-600",
+      iconBg: "from-amber-500 to-yellow-600",
       keywords: ["sign", "display", "flag", "political", "for sale"],
       content: (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">{signsRules.general_rule}</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5">
+            <p className="text-sm leading-relaxed text-amber-800">{signsRules.general_rule}</p>
           </div>
           <SubSection title="Allowed Without Approval">
             <BulletList items={signsRules.allowed_without_approval} />
@@ -277,12 +285,13 @@ export function RulesView() {
       id: "leasing",
       title: "Leasing Restrictions",
       icon: Key,
-      color: "text-indigo-600 bg-indigo-50",
+      color: "text-indigo-600",
+      iconBg: "from-indigo-500 to-violet-600",
       keywords: ["lease", "rent", "rental", "tenant", "sublease"],
       content: (
         <div className="space-y-4">
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-            <p className="text-sm text-indigo-800">{leasingRestrictions.purpose}</p>
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3.5">
+            <p className="text-sm leading-relaxed text-indigo-800">{leasingRestrictions.purpose}</p>
           </div>
           <SubSection title="Key Rules">
             <InfoRow label="Max Open Leasing" value={`${leasingRestrictions.max_open_leasing_percent}% of Lots`} />
@@ -306,7 +315,8 @@ export function RulesView() {
       id: "assessments",
       title: "Assessments & Dues",
       icon: DollarSign,
-      color: "text-green-600 bg-green-50",
+      color: "text-green-600",
+      iconBg: "from-green-500 to-emerald-600",
       keywords: ["assessment", "dues", "fee", "payment", "fine", "late", "lien", "delinquent"],
       content: (
         <div className="space-y-4">
@@ -335,7 +345,8 @@ export function RulesView() {
       id: "insurance",
       title: "Insurance Requirements",
       icon: Shield,
-      color: "text-teal-600 bg-teal-50",
+      color: "text-teal-600",
+      iconBg: "from-teal-500 to-cyan-600",
       keywords: ["insurance", "casualty", "liability", "coverage"],
       content: (
         <div className="space-y-4">
@@ -352,7 +363,8 @@ export function RulesView() {
       id: "nuisance",
       title: "Nuisance & Additional Rules",
       icon: Ban,
-      color: "text-red-600 bg-red-50",
+      color: "text-red-600",
+      iconBg: "from-red-500 to-rose-600",
       keywords: ["nuisance", "noise", "gun", "pool", "clothesline", "tree", "garage sale", "window"],
       content: (
         <div className="space-y-4">
@@ -380,7 +392,8 @@ export function RulesView() {
       id: "governance",
       title: "Governance & Board",
       icon: Users,
-      color: "text-slate-600 bg-slate-50",
+      color: "text-slate-600",
+      iconBg: "from-slate-500 to-slate-700",
       keywords: ["board", "meeting", "vote", "election", "officer", "president", "fine", "hearing"],
       content: (
         <div className="space-y-4">
@@ -411,7 +424,8 @@ export function RulesView() {
       id: "quickref",
       title: "Quick Reference",
       icon: Zap,
-      color: "text-yellow-600 bg-yellow-50",
+      color: "text-yellow-600",
+      iconBg: "from-yellow-500 to-amber-600",
       keywords: ["reference", "threshold", "time", "limit", "amount", "vote"],
       content: (
         <div className="space-y-4">
@@ -447,27 +461,29 @@ export function RulesView() {
   return (
     <div className="space-y-6 pb-20 lg:pb-0">
       <div>
-        <h1 className="text-2xl font-bold">Rules & Guidelines</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-bold text-[#0f172a]">Rules & Guidelines</h1>
+        <p className="mt-1 text-sm text-slate-500">
           Community rules from the Madison Park Declaration of Covenants (Recorded {communityInfo.recorded_date}, Deed Book {communityInfo.deed_book})
         </p>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded bg-slate-200/60">
+          <Search className="h-3 w-3 text-slate-500" />
+        </div>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search rules (e.g. pets, parking, fence, lease...)"
-          className="pl-9"
+          className="h-11 rounded-xl border-slate-200 bg-white pl-11 text-sm shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
         />
       </div>
 
       {/* Sections */}
       <div className="space-y-3">
         {filteredSections.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-12 text-center text-sm text-slate-400">
             No rules found matching &ldquo;{search}&rdquo;
           </p>
         ) : (
@@ -475,32 +491,38 @@ export function RulesView() {
             const isOpen = openSections.has(section.id)
             const Icon = section.icon
             return (
-              <Card key={section.id}>
+              <Card key={section.id} className="overflow-hidden rounded-xl border-slate-200/80 shadow-sm transition-all duration-200 hover:shadow-md">
                 <button
                   type="button"
                   onClick={() => toggleSection(section.id)}
-                  className="flex w-full items-center gap-3 p-4 text-left"
+                  className="flex w-full items-center gap-3.5 p-4 text-left transition-colors duration-200 hover:bg-slate-50/80"
                 >
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${section.color}`}>
-                    <Icon className="h-4.5 w-4.5" />
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${section.iconBg} shadow-sm`}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <span className="flex-1 font-semibold text-sm">{section.title}</span>
+                  <span className="flex-1 font-semibold text-sm text-[#0f172a]">{section.title}</span>
                   <ChevronDown
-                    className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 text-slate-400 transition-transform duration-300 ease-out ${isOpen ? "rotate-180" : ""}`}
                   />
                 </button>
-                {isOpen && (
-                  <CardContent className="border-t px-4 pt-4 pb-4">
-                    {section.content}
-                  </CardContent>
-                )}
+                <div
+                  className={`grid transition-all duration-300 ease-out ${
+                    isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    <CardContent className="border-t border-slate-100 px-5 pt-4 pb-5">
+                      {section.content}
+                    </CardContent>
+                  </div>
+                </div>
               </Card>
             )
           })
         )}
       </div>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-slate-400">
         This is a summary of the Declaration of Protective Covenants. For the complete legal document, contact the Board.
       </p>
     </div>
