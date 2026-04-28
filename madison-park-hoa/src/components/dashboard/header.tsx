@@ -41,7 +41,7 @@ export function Header({
       .sort(([a], [b]) => b.length - a.length)[0]?.[1] || "Dashboard"
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-200/80 bg-white/80 px-4 backdrop-blur-sm lg:px-8">
       {/* Mobile menu button */}
       <Button
         variant="ghost"
@@ -54,12 +54,16 @@ export function Header({
       </Button>
 
       {/* Page title */}
-      <h1 className="text-lg font-semibold md:text-xl">{title}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
 
       <div className="ml-auto flex items-center gap-3">
         {/* View as Resident */}
         <Link href="/api/portal-preview">
-          <Button variant="outline" size="sm" className="hidden sm:flex h-8 text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden h-8 gap-1.5 rounded-lg border-slate-200 bg-white text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 sm:flex"
+          >
             <Eye className="h-3.5 w-3.5" />
             View as Resident
           </Button>
@@ -72,9 +76,9 @@ export function Header({
         <NotificationBell userId={userId} />
 
         {/* User avatar */}
-        <Avatar className="h-8 w-8">
+        <Avatar className="h-8 w-8 ring-2 ring-slate-100 transition-all duration-200 hover:ring-indigo-100">
           {user.avatar_url && <AvatarImage src={user.avatar_url} />}
-          <AvatarFallback className="text-xs">
+          <AvatarFallback className="bg-gradient-to-br from-indigo-100 to-violet-100 text-xs font-medium text-indigo-700">
             {getInitials(user.full_name)}
           </AvatarFallback>
         </Avatar>
