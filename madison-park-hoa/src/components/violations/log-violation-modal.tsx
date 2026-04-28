@@ -116,10 +116,8 @@ export function LogViolationModal({
 
   function handlePropertyChange(id: string) {
     setPropertyId(id)
-    // Auto-select the primary owner for this property
-    const owner = residents.find(
-      (r) => r.property_id === id && (r.relationship === "Primary Owner" || r.type === "owner")
-    )
+    // Auto-select the first resident (owner) for this property
+    const owner = residents.find((r) => r.property_id === id)
     setResidentId(owner?.id || "")
   }
 
