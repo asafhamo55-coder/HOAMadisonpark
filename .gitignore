@@ -1,4 +1,3 @@
 # Next.js build output (when built from repo root)
 .next/
-.vercel
-.env*.local
+.claude/

@@ -60,14 +60,17 @@ export function PortalShell({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-slate-50">
       {/* Preview Banner */}
       {isPreview && (
-        <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-white">
-          <span>Previewing as Resident</span>
+        <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-sm font-medium text-white shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-2 w-2 rounded-full bg-white/80 animate-pulse" />
+            <span>Previewing as Resident</span>
+          </div>
           <button
             onClick={exitPreview}
-            className="rounded bg-white/20 px-3 py-0.5 text-xs font-semibold hover:bg-white/30 transition-colors"
+            className="rounded-lg bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm transition-all hover:bg-white/30 hover:shadow-sm"
           >
             Back to Dashboard
           </button>
@@ -75,18 +78,20 @@ export function PortalShell({
       )}
 
       {/* Top Navigation */}
-      <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
+      <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-[#0f172a] shadow-lg shadow-slate-900/5">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           {/* Logo + HOA Name */}
-          <Link href="/portal" className="flex items-center gap-3">
-            <Image
-              src={process.env.NEXT_PUBLIC_HOA_LOGO_URL || "/logo.svg"}
-              alt="HOA"
-              width={36}
-              height={36}
-              className="rounded"
-            />
-            <span className="hidden text-lg font-bold text-[#1e3a5f] sm:block">
+          <Link href="/portal" className="flex items-center gap-3 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/20 transition-all group-hover:bg-white/15 group-hover:ring-white/30">
+              <Image
+                src={process.env.NEXT_PUBLIC_HOA_LOGO_URL || "/logo.svg"}
+                alt="HOA"
+                width={24}
+                height={24}
+                className="rounded"
+              />
+            </div>
+            <span className="hidden text-lg font-bold text-white sm:block">
               Madison Park HOA
             </span>
           </Link>
@@ -103,29 +108,32 @@ export function PortalShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-slate-400 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{item.title}</span>
+                  {isActive && (
+                    <span className="absolute -bottom-[9px] left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-400 to-violet-400" />
+                  )}
                 </Link>
               )
             })}
 
             {/* User menu */}
-            <div className="ml-2 flex items-center gap-2 border-l pl-3">
-              <Avatar className="h-8 w-8">
+            <div className="ml-3 flex items-center gap-2 border-l border-white/10 pl-4">
+              <Avatar className="h-8 w-8 ring-2 ring-white/10 transition-all hover:ring-white/25">
                 <AvatarImage src={user.avatar_url || undefined} />
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-500 text-xs font-semibold text-white">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <button
                 onClick={handleLogout}
-                className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-lg p-2 text-slate-400 transition-all duration-200 hover:bg-white/10 hover:text-white"
                 title="Sign Out"
               >
                 <LogOut className="h-4 w-4" />
@@ -137,11 +145,11 @@ export function PortalShell({
 
       {/* Main content */}
       <main className="flex-1">
-        <div className="mx-auto max-w-5xl px-4 py-6">{children}</div>
+        <div className="mx-auto max-w-5xl px-4 py-8">{children}</div>
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/80 backdrop-blur-xl lg:hidden">
         <div className="flex">
           {NAV_ITEMS.map((item) => {
             const isActive =
@@ -153,20 +161,26 @@ export function PortalShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${
-                  isActive ? "text-blue-600" : "text-gray-500"
+                className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-indigo-600"
+                    : "text-slate-400 active:text-slate-600"
                 }`}
               >
-                <Icon className="h-5 w-5" />
+                <div className={`rounded-lg p-1 transition-colors duration-200 ${isActive ? "bg-indigo-50" : ""}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
                 {item.title}
               </Link>
             )
           })}
           <button
             onClick={handleLogout}
-            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-gray-500"
+            className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium text-slate-400 transition-colors active:text-slate-600"
           >
-            <LogOut className="h-5 w-5" />
+            <div className="rounded-lg p-1">
+              <LogOut className="h-5 w-5" />
+            </div>
             Sign Out
           </button>
         </div>
