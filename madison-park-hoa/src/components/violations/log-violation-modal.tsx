@@ -50,6 +50,9 @@ type ResidentOption = {
   id: string
   full_name: string
   property_id: string
+  email: string | null
+  phone: string | null
+  relationship: string | null
 }
 
 interface LogViolationModalProps {
@@ -116,8 +119,9 @@ export function LogViolationModal({
 
   function handlePropertyChange(id: string) {
     setPropertyId(id)
-    // Auto-select the first resident (owner) for this property
-    const owner = residents.find((r) => r.property_id === id)
+    // Auto-select the primary owner, falling back to first resident
+    const propResidents = residents.filter((r) => r.property_id === id)
+    const owner = propResidents.find((r) => r.relationship === "Primary Owner") || propResidents[0]
     setResidentId(owner?.id || "")
   }
 

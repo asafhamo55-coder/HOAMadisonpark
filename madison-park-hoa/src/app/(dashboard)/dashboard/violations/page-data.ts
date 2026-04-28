@@ -41,6 +41,9 @@ export type ResidentOption = {
   id: string
   full_name: string
   property_id: string
+  email: string | null
+  phone: string | null
+  relationship: string | null
 }
 
 export type ViolationsPageData = {
@@ -66,7 +69,7 @@ export async function getViolationsPageData(): Promise<ViolationsPageData> {
 
     supabase
       .from("residents")
-      .select("id, full_name, property_id")
+      .select("id, full_name, property_id, email, phone, relationship")
       .eq("is_current", true),
   ])
 
