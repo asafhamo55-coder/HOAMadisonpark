@@ -141,6 +141,37 @@ export async function addToWaitlist(formData: FormData) {
   return { error: null }
 }
 
+export async function updateWaitlistEntry(id: string, formData: FormData) {
+  const supabase = createClient()
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+
+  const ownerName = formData.get("owner_name") as string
+  const ownerEmail = (formData.get("owner_email") as string) || null
+  const ownerPhone = (formData.get("owner_phone") as string) || null
+  const reason = (formData.get("reason") as string) || null
+  const notes = (formData.get("notes") as string) || null
+
+  if (!ownerName) return { error: "Owner name is required" }
+
+  const { error } = await supabase
+    .from("leasing_waitlist")
+    .update({
+      owner_name: ownerName,
+      owner_email: ownerEmail,
+      owner_phone: ownerPhone,
+      reason,
+      notes,
+    })
+    .eq("id", id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/leasing")
+  return { error: null }
+}
+
 export async function removeFromWaitlist(id: string) {
   const supabase = createClient()
   const user = await getCurrentUser()

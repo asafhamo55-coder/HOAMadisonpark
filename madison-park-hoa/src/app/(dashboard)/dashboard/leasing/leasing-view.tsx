@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Phone,
   Mail,
+  Pencil,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -42,6 +43,7 @@ import {
   addToWaitlist,
   removeFromWaitlist,
   approveFromWaitlist,
+  updateWaitlistEntry,
   type WaitlistEntry,
   type LeasingStats,
 } from "@/app/actions/leasing-waitlist"
@@ -56,6 +58,7 @@ export function LeasingView({
   properties: { id: string; address: string }[]
 }) {
   const [addOpen, setAddOpen] = useState(false)
+  const [editEntry, setEditEntry] = useState<WaitlistEntry | null>(null)
   const capReached = stats.openLeasingPercent >= 15
 
   return (
@@ -158,6 +161,7 @@ export function LeasingView({
                 entry={entry}
                 position={index + 1}
                 canApprove={stats.spotsAvailable > 0}
+                onEdit={() => setEditEntry(entry)}
               />
             ))}
           </div>
@@ -170,6 +174,14 @@ export function LeasingView({
         onOpenChange={setAddOpen}
         properties={properties}
       />
+
+      {/* Edit Waitlist Entry Dialog */}
+      {editEntry && (
+        <EditWaitlistDialog
+          entry={editEntry}
+          onClose={() => setEditEntry(null)}
+        />
+      )}
     </div>
   )
 }
@@ -178,10 +190,12 @@ function WaitlistCard({
   entry,
   position,
   canApprove,
+  onEdit,
 }: {
   entry: WaitlistEntry
   position: number
   canApprove: boolean
+  onEdit: () => void
 }) {
   const [removing, setRemoving] = useState(false)
   const [approving, setApproving] = useState(false)
@@ -249,6 +263,15 @@ function WaitlistCard({
           </div>
 
           <div className="flex shrink-0 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={onEdit}
+            >
+              <Pencil className="mr-1 h-3 w-3" />
+              Edit
+            </Button>
             {canApprove && (
               <Button
                 variant="outline"
@@ -390,6 +413,106 @@ function AddToWaitlistDialog({
             <Button type="submit" disabled={loading || !propertyId}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add to Waitlist
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditWaitlistDialog({
+  entry,
+  onClose,
+}: {
+  entry: WaitlistEntry
+  onClose: () => void
+}) {
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setLoading(true)
+    const formData = new FormData(e.currentTarget)
+    const result = await updateWaitlistEntry(entry.id, formData)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success("Waitlist entry updated")
+      onClose()
+    }
+    setLoading(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Waitlist Entry</DialogTitle>
+          <DialogDescription>
+            {entry.property_address}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit_owner_name">Owner Name *</Label>
+              <Input
+                id="edit_owner_name"
+                name="owner_name"
+                defaultValue={entry.owner_name}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_owner_email">Owner Email</Label>
+              <Input
+                id="edit_owner_email"
+                name="owner_email"
+                type="email"
+                defaultValue={entry.owner_email || ""}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit_owner_phone">Owner Phone</Label>
+            <Input
+              id="edit_owner_phone"
+              name="owner_phone"
+              defaultValue={entry.owner_phone || ""}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit_reason">Reason</Label>
+            <Textarea
+              id="edit_reason"
+              name="reason"
+              rows={3}
+              defaultValue={entry.reason || ""}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit_notes">Notes</Label>
+            <Textarea
+              id="edit_notes"
+              name="notes"
+              rows={2}
+              defaultValue={entry.notes || ""}
+              placeholder="Internal notes..."
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </form>

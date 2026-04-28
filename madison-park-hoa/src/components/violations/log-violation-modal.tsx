@@ -116,7 +116,11 @@ export function LogViolationModal({
 
   function handlePropertyChange(id: string) {
     setPropertyId(id)
-    setResidentId("")
+    // Auto-select the primary owner for this property
+    const owner = residents.find(
+      (r) => r.property_id === id && (r.relationship === "Primary Owner" || r.type === "owner")
+    )
+    setResidentId(owner?.id || "")
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
