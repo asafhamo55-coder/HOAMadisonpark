@@ -16,11 +16,8 @@ import {
  */
 export default async function TenantLayout({
   children,
-  params,
 }: {
   children: React.ReactNode
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  params: { slug: string }
 }) {
   const { tenantId } = await requireTenantContext()
   const settings = await getTenantSettings(tenantId)

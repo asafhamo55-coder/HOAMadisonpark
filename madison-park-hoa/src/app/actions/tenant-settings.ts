@@ -29,10 +29,12 @@ type ActionResult<T = void> =
   | { ok: true; data?: T }
   | { ok: false; error: string }
 
+function ok(): ActionResult
+function ok<T>(data: T): ActionResult<T>
 function ok<T>(data?: T): ActionResult<T> {
-  return { ok: true, data }
+  return { ok: true, data } as ActionResult<T>
 }
-function fail(error: string): ActionResult<never> {
+function fail<T = void>(error: string): ActionResult<T> {
   return { ok: false, error }
 }
 
@@ -66,7 +68,7 @@ async function patchTenantSettings(
     | "notifications",
   patch: Record<string, unknown>,
   auditAction: string,
-) {
+): Promise<ActionResult> {
   const ctx = await requireRole(STAFF_ROLES)
 
   // Read current bucket so we shallow-merge.
