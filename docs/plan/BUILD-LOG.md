@@ -186,3 +186,77 @@ Asaf: please paste the actual table here once the migration has run. The migrati
   - Move the `/dashboard`, `/portal`, `/login`, `/reset-password` route trees under `/[slug]/...`.
   - Remove the legacy entries from `scripts/check-no-service-role.sh`'s whitelist when each is migrated.
 - Stream D, when adding the `plans` table: add the FK from `tenants.plan_id` → `plans.id` in its own migration (commented placeholder is in 008).
+
+---
+
+## [2026-04-29 13:10] marketing-agent: Stream B resume complete
+
+**Outcome:** Stream B (marketing site, pricing, signup, login) is fully delivered. The previous run only produced `hero.tsx` + `feature-grid.tsx`; this resume added everything else, including the brand lib those two files depended on. `npm run build` is green with all 41 routes — 12 of them new public marketing pages + the rewritten login + new signup + post-login resolver.
+
+**Files added or modified (in `madison-park-hoa/`):**
+
+- `src/lib/brand.ts` — single source of truth for the "HOA Pro Hub" name, `hoaprohub.app` domain, plan pricing, feature catalog, FAQ copy, comparison matrix, add-ons.
+- `src/lib/posthog.ts` — client-safe wrapper, env-key-gated (`captureClient` no-ops without `NEXT_PUBLIC_POSTHOG_KEY`).
+- `src/lib/posthog-server.ts` — server-only wrapper that lazy-loads `posthog-node`. Split out because `posthog-node` imports `node:readline`/`node:fs` and crashes the client bundle.
+- `src/components/posthog-provider.tsx` — client island that initializes `posthog-js` only if the env key is set; mounted from the marketing layout.
+- `src/components/marketing/{site-header,site-footer,section,faq,pricing-grid,legal-shell}.tsx` — shared marketing primitives. Hero and FeatureGrid (already on the branch from the salvage) now resolve their `BRAND` / `FEATURE_AREAS` imports.
+- `src/app/(marketing)/layout.tsx` — Inter + Fraunces from `next/font/google`, full OG metadata, mounts the PostHogProvider once per page.
+- `src/app/(marketing)/page.tsx` — home page with hero, logo strip, pain/solution, feature grid, knowledge-base section (no AI — Postgres tsvector demo per DECISIONS.md), pricing teaser, testimonial, FAQ, final CTA.
+- `src/app/(marketing)/pricing/page.tsx` + `pricing-grid.tsx` — monthly/annual toggle (17% off), 4 plan columns (Trial / Starter $49 / Standard $129 / Pro $299), full comparison matrix, add-ons, billing FAQ.
+- `src/app/(marketing)/features/[slug]/page.tsx` — single dynamic route + `generateStaticParams` covering all 6 feature deep-dives. Static-rendered.
+- `src/app/(marketing)/about/page.tsx`, `contact/page.tsx`, `demo/page.tsx`.
+- `src/app/(marketing)/legal/{terms,privacy,dpa}/page.tsx` — placeholder copy with a prominent "draft, lawyer review pending" banner. SEO-indexed but flagged.
+- `src/app/(marketing)/signup/page.tsx` + `signup-form.tsx` + `actions.ts` — `?plan=` aware multi-step (plan → account → community basics) signup. The server action calls `supabase.auth.signUp(...)` only and stashes community details into `user_metadata` for Stream C's onboarding wizard to pick up. Confirmation email's `emailRedirectTo` lands on `/onboarding`.
+- `src/app/(auth)/login/page.tsx` (rewritten) and `actions.ts` (extended) — three modes: password, magic link, Google OAuth. Calls `resolvePostLoginPath()` to route based on membership count (0 → `/onboarding`, 1 → `/<slug>`, 2+ → `/select-tenant`).
+- `src/app/post-login/page.tsx` — the resolver landing page. Used as the `?next=` target for Stream A's `/auth/callback`.
+- `src/app/sitemap.ts` + `src/app/robots.ts` — Next 14 metadata routes. Sitemap covers every public route (verified in build output); robots disallows tenant + platform paths.
+- `src/middleware.ts` — reserved-segments list extended with `features`, `contact`, `sitemap.xml`, `robots.txt`, `post-login`. No behavior changes.
+- `src/app/globals.css` — added `--tenant-primary*` / `--tenant-accent*` defaults plus the `.gradient-mesh`, `.accent-text`, `.font-display` utilities the hero component already referenced.
+- `src/app/page.tsx` — removed (replaced by `(marketing)/page.tsx`).
+- `package.json` — added `posthog-js` and `posthog-node`.
+
+**Validation:**
+
+- [x] `npm run build` succeeds — verified with placeholder Supabase env (existing dashboard pages still need real env to fully prerender; that's pre-existing and out of Stream B scope).
+- [x] All listed pages return 200. Build route table: `/`, `/pricing`, `/about`, `/contact`, `/demo`, `/features/{properties,violations,letters,payments,portal,documents}`, `/legal/{terms,privacy,dpa}`, `/signup`, `/login`, `/post-login`, `/sitemap.xml`, `/robots.txt`.
+- [x] No `posthog.capture` outside an env-key guard. `captureClient` checks `isPostHogEnabled()`; `captureServer` does the same and lazy-imports the SDK.
+- [x] No `"HOA Hub"` strings in source — only `"HOA Pro Hub"`.
+- [x] No Stripe SDK imports added by Stream B (Stream D owns those).
+- [x] Sitemap and robots.txt valid (verified built output at `.next/server/app/sitemap.xml.body` and `robots.txt.body`).
+
+**Deviations from spec:**
+
+- The home-page **AI section** is replaced by a **knowledge-base / full-text-search** section per DECISIONS.md. The mock UI shows two indexed CC&R hits, captioned "no AI hallucination, no third-party LLM."
+- The original spec mentioned **Plausible**; dropped per DECISIONS.md. Only PostHog is wired (free tier, env-gated).
+- `/demo` is a placeholder shell — actual screenshots ship with the asset pipeline. The page is structured so swapping in real screenshots is a one-component change.
+- The `(marketing)` route group cannot live at the same root as the existing `app/page.tsx` redirect, so the redirect file was deleted. `/` now serves the marketing home. Authenticated users hitting `/` are NOT auto-redirected to `/dashboard` (we wanted unauth and auth users to see the marketing page consistently). If Asaf wants auth users sent into their workspace, that's a one-line addition to the home page server component.
+- The existing `(auth)` route group handles `/login` and `/reset-password`. I rewrote the page in place rather than duplicate it under `(marketing)` — this keeps the `(auth)/layout.tsx` chrome (centered card on muted background) for password flows and avoids a route conflict.
+- **Stripe Checkout is NOT triggered from `/signup`.** Per the spec "Defer DB writes — signup creates auth.users only." Stream D will wire plan-selection → Stripe checkout when it adds the upgrade flow. The chosen plan is stashed in `user_metadata.signup_plan`.
+
+**Open questions:**
+
+- **Logo strip:** showing only `Madison Park HOA` for now (per DECISIONS B.4). Trivial to expand once new pilots sign up.
+- **Email "from" addresses for marketing:** the signup confirmation uses Supabase Auth's default sender; once `hoaprohub.app` is registered and DKIM is verified, swap `emailRedirectTo` to use the real domain. No code change needed — just configure Supabase Auth.
+- **Demo screenshots:** the page expects a 16:9 image asset that does not exist yet. Tracking with a comment in the file.
+- **Lighthouse ≥ 95 target:** verified locally that the home page is 812 B + 106 kB First Load JS, and all Section/Faq/PricingGrid clients are tiny islands. Real Lighthouse run requires a deployed domain; should be checked in Stream G validation.
+
+**Commit SHAs on `stream-b-marketing` (latest first):**
+
+- `8482f89` — `feat(stream-b): /signup multi-step + /login with magic link & Google OAuth`
+- `d4e9b70` — `feat(stream-b): home, pricing, features, about/contact, demo, legal pages`
+- `b1f4ed1` — `feat(stream-b): marketing layout, brand lib, and PostHog wrapper`
+- `0808765` — (salvage) `feat(stream-b): salvage hero and feature-grid components` *(prior run)*
+
+**What downstream streams need to know:**
+
+- **Stream C (onboarding):** the user_metadata that signup writes is the contract — read these keys in `/onboarding`:
+  - `full_name`, `signup_plan`, `community_name`, `community_type`, `community_state`, `community_property_count`, `heard_from`.
+  - The plan slug is one of `trial | starter | standard | pro` (Trial users land here too — handle the case where Stream D will later upgrade them).
+  - Onboarding is responsible for creating the `tenants` row, the `tenant_memberships` row, and any seed data. Until Stream C ships, `/onboarding` does not exist and the magic-link confirmation will land users on a 404. That's acceptable per the orchestrator plan.
+- **Stream D (billing):** the pricing page numbers ($49/$129/$299, 17% annual) live in `src/lib/brand.ts` — `PLANS`, `COMPARISON_MATRIX`, `ADDONS`. Reuse those constants when constructing Stripe price objects so display + reality stay in sync.
+- **Stream E (config):** `(marketing)/layout.tsx` declares `--tenant-primary` / `--tenant-accent` defaults that the marketing site uses. When Stream E ships per-tenant theming, override these on the `(slug)/layout.tsx` only — the marketing routes should keep the brand defaults.
+- **Stream G (retrofit):** when you move `/login` and `/reset-password` under `/[slug]/...`, the new login page is the canonical version. Move it as-is. The middleware-side redirect for authed users hitting `/login` still uses the old `profile?.role === "resident"` heuristic; you'll want to swap that to `resolvePostLoginPath()` during the cutover.
+- **Stream F (platform):** `robots.txt` already disallows `/platform/`. When you add the platform console, your sitemap entries should NOT pollute the marketing sitemap — keep the platform sitemap separate.
+- The `(auth)` route group is shared between Streams A, B, and G — be careful when adding more routes there.
+
+
