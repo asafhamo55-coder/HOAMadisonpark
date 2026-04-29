@@ -115,12 +115,26 @@ begin
     -- Now we can safely set NOT NULL
     execute format('alter table public.%I alter column tenant_id set not null', tbl);
 
-    -- Composite index per the convention in 09-data-model.md
-    -- (created_at exists on every table — confirmed in BUILD-LOG inventory).
-    execute format(
-      'create index if not exists idx_%I_tenant_created on public.%I(tenant_id, created_at desc)',
-      tbl, tbl
-    );
+    -- Composite index per the convention in 09-data-model.md.
+    -- Defensive: not every legacy table has `created_at` (e.g. `hoa_settings`
+    -- in migration 002 only has `updated_at`). Fall back to a `(tenant_id)`
+    -- index when `created_at` isn't present.
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = tbl
+        and column_name = 'created_at'
+    ) then
+      execute format(
+        'create index if not exists idx_%I_tenant_created on public.%I(tenant_id, created_at desc)',
+        tbl, tbl
+      );
+    else
+      execute format(
+        'create index if not exists idx_%I_tenant on public.%I(tenant_id)',
+        tbl, tbl
+      );
+    end if;
 
     -- Record the audit row
     insert into public.tenant_backfill_audit
