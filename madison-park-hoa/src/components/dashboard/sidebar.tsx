@@ -7,6 +7,8 @@ import { LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { navItems } from "@/components/dashboard/nav-config"
+import { useTenant } from "@/components/tenant-provider"
+import { tenantPath } from "@/lib/tenant-path"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -47,6 +49,8 @@ export function Sidebar({
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
+  const { slug, tenantName } = useTenant()
+  const dashboardRoot = tenantPath(slug)
 
   const filteredItems = navItems.filter((item) => {
     if (item.adminOnly && user.role !== "admin") return false
@@ -65,7 +69,7 @@ export function Sidebar({
           className="rounded-lg"
         />
         <span className="text-sm font-semibold tracking-tight">
-          {process.env.NEXT_PUBLIC_HOA_NAME || "Madison Park HOA"}
+          {tenantName}
         </span>
       </div>
 
@@ -75,14 +79,17 @@ export function Sidebar({
       <ScrollArea className="flex-1 py-2">
         <nav className="flex flex-col gap-1 px-2">
           {filteredItems.map((item) => {
+            const href = tenantPath(slug, item.segment)
             const isActive =
-              pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href))
+              pathname === href ||
+              (item.segment !== "" && pathname.startsWith(`${href}/`)) ||
+              (item.segment !== "" && pathname === href) ||
+              (item.segment === "" && pathname === dashboardRoot)
 
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={item.segment}
+                href={href}
                 onClick={onNavigate}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",

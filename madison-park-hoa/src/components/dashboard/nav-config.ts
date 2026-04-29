@@ -11,71 +11,47 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+/**
+ * Per-module navigation entries. Hrefs are tenant-agnostic — they are
+ * appended to the active tenant slug at render time via
+ * `tenantPath(slug, segment)`. The `segment` field is what `tenantPath`
+ * receives; an empty segment means the dashboard root (`/<slug>`).
+ */
 export type NavItem = {
   title: string
-  href: string
+  /** Path segment under `/[slug]/...`. Empty string = dashboard root. */
+  segment: string
   icon: LucideIcon
   adminOnly?: boolean
 }
 
 export const navItems: NavItem[] = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Properties & Residents",
-    href: "/dashboard/properties",
-    icon: Building2,
-  },
-  {
-    title: "Violations",
-    href: "/dashboard/violations",
-    icon: AlertTriangle,
-  },
-  {
-    title: "Email Center",
-    href: "/dashboard/email",
-    icon: Mail,
-  },
-  {
-    title: "Vendors",
-    href: "/dashboard/vendors",
-    icon: Wrench,
-  },
-  {
-    title: "Announcements",
-    href: "/dashboard/announcements",
-    icon: Megaphone,
-  },
-  {
-    title: "Documents",
-    href: "/dashboard/documents",
-    icon: FileText,
-  },
-  {
-    title: "Payments",
-    href: "/dashboard/payments",
-    icon: CreditCard,
-  },
-  {
-    title: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-    adminOnly: true,
-  },
+  { title: "Dashboard", segment: "", icon: Home },
+  { title: "Properties & Residents", segment: "properties", icon: Building2 },
+  { title: "Violations", segment: "violations", icon: AlertTriangle },
+  { title: "Email Center", segment: "email", icon: Mail },
+  { title: "Vendors", segment: "vendors", icon: Wrench },
+  { title: "Announcements", segment: "announcements", icon: Megaphone },
+  { title: "Documents", segment: "documents", icon: FileText },
+  { title: "Payments", segment: "payments", icon: CreditCard },
+  { title: "Settings", segment: "settings", icon: Settings, adminOnly: true },
 ]
 
+/**
+ * Mapping from tenant-relative path -> human-readable page title.
+ * Used by the header breadcrumb. Lookup is performed against
+ * `pathname.replace(\`/${slug}\`, "")`.
+ */
 export const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/dashboard/properties": "Properties & Residents",
-  "/dashboard/violations": "Violations",
-  "/dashboard/email": "Email Center",
-  "/dashboard/vendors": "Vendors",
-  "/dashboard/vendors/jobs": "Work Orders",
-  "/dashboard/announcements": "Announcements",
-  "/dashboard/documents": "Documents",
-  "/dashboard/payments": "Payments",
-  "/dashboard/settings": "Settings",
+  "": "Dashboard",
+  "/": "Dashboard",
+  "/properties": "Properties & Residents",
+  "/violations": "Violations",
+  "/email": "Email Center",
+  "/vendors": "Vendors",
+  "/vendors/jobs": "Work Orders",
+  "/announcements": "Announcements",
+  "/documents": "Documents",
+  "/payments": "Payments",
+  "/settings": "Settings",
 }
