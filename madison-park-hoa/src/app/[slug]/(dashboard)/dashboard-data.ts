@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server"
+import { getTenantContext } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
 import type { UserProfile } from "@/lib/auth"
 
 /* ── Shared types ─────────────────────────────────────────── */
@@ -71,7 +72,7 @@ export type AdminDashboardData = {
 }
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
-  const supabase = createClient()
+  const { supabase, tenantSlug } = await getTenantContext()
 
   // Run all queries in parallel
   const [
@@ -168,7 +169,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     {
       label: "Open Violations",
       value: openViolationsRes.count || 0,
-      href: "/dashboard/violations?status=open",
+      href: `${tenantPath(tenantSlug, "violations")}?status=open`,
     },
     {
       label: "Pending Fines",
@@ -177,7 +178,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     {
       label: "Overdue Payments",
       value: overduePaymentsRes.count || 0,
-      href: "/dashboard/payments?status=overdue",
+      href: `${tenantPath(tenantSlug, "payments")}?status=overdue`,
     },
     { label: "Active Vendors", value: activeVendorsRes.count || 0 },
   ]
@@ -318,7 +319,7 @@ export type ResidentDashboardData = {
 export async function getResidentDashboardData(
   user: UserProfile
 ): Promise<ResidentDashboardData> {
-  const supabase = createClient()
+  const { supabase } = await getTenantContext()
 
   // Find the resident's property
   const { data: residentData } = await supabase

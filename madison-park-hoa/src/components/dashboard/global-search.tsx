@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Building2, AlertTriangle, Wrench, Search } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { useTenant } from "@/components/tenant-provider"
+import { tenantPath } from "@/lib/tenant-path"
 import {
   CommandDialog,
   CommandEmpty,
@@ -27,6 +29,7 @@ export function GlobalSearch() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { slug } = useTenant()
 
   // Cmd+K listener
   useEffect(() => {
@@ -84,7 +87,7 @@ export function GlobalSearch() {
           id: `prop-${p.id}`,
           label: p.address,
           sublabel: currentRes?.full_name || undefined,
-          href: `/dashboard/properties/${p.id}`,
+          href: tenantPath(slug, "properties", p.id),
           type: "property",
         })
       }
@@ -108,7 +111,7 @@ export function GlobalSearch() {
               id: `prop-${prop.id}`,
               label: prop.address,
               sublabel: r.full_name,
-              href: `/dashboard/properties/${prop.id}`,
+              href: tenantPath(slug, "properties", prop.id),
               type: "property",
             })
           }
@@ -125,7 +128,7 @@ export function GlobalSearch() {
           id: `viol-${v.id}`,
           label: `${v.category}: ${(v.description || "").slice(0, 50)}`,
           sublabel: prop?.address || undefined,
-          href: `/dashboard/violations`,
+          href: tenantPath(slug, "violations"),
           type: "violation",
         })
       }
@@ -138,7 +141,7 @@ export function GlobalSearch() {
           id: `vendor-${vd.id}`,
           label: vd.name,
           sublabel: vd.specialty || undefined,
-          href: `/dashboard/vendors`,
+          href: tenantPath(slug, "vendors"),
           type: "vendor",
         })
       }
@@ -146,7 +149,7 @@ export function GlobalSearch() {
 
     setResults(items)
     setLoading(false)
-  }, [])
+  }, [slug])
 
   useEffect(() => {
     const timer = setTimeout(() => search(query), 250)

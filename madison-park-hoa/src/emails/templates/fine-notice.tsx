@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface FineNoticeProps {
   residentName: string
@@ -12,6 +13,7 @@ export interface FineNoticeProps {
   fineDueDate: string
   paymentUrl?: string
   dashboardUrl?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function FineNotice({
@@ -22,11 +24,14 @@ export function FineNotice({
   violationId = "VIO-001",
   fineAmount = "$150.00",
   fineDueDate = "April 15, 2026",
-  paymentUrl = "https://madisonparkhoa.com/dashboard/payments",
+  paymentUrl,
+  tenant,
 }: FineNoticeProps) {
+  const hoaName = tenant?.name ?? "Your HOA"
   return (
     <BaseLayout
       preview={`Fine Notice: ${fineAmount} — ${category} violation at ${propertyAddress}`}
+      tenant={tenant}
     >
       <Heading style={heading}>Fine Notice</Heading>
 
@@ -34,7 +39,7 @@ export function FineNotice({
 
       <Text style={text}>
         Following prior notices regarding the violation at your property, a fine
-        has been assessed in accordance with the Madison Park HOA covenants and
+        has been assessed in accordance with the {hoaName} covenants and
         bylaws. We regret that this step was necessary and remain available to
         assist you.
       </Text>
@@ -102,7 +107,7 @@ export function FineNotice({
       <Text style={signature}>
         Sincerely,
         <br />
-        Madison Park HOA Board
+        {hoaName} Board
       </Text>
     </BaseLayout>
   )

@@ -1,20 +1,46 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
+
+import { audit } from "@/lib/audit"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const WRITE_ROLES: TenantRole[] = ["owner", "admin", "board"]
+
+function assertCanWrite(role: TenantRole) {
+  if (!WRITE_ROLES.includes(role)) throw new Error("Forbidden")
+}
+
+function propertyPaths(slug: string, propertyId: string) {
+  return [
+    tenantPath(slug, "properties", propertyId),
+    tenantPath(slug, "properties"),
+  ]
+}
 
 export async function updatePropertyStatus(
   propertyId: string,
   status: string
 ) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
+
   const { error } = await supabase
     .from("properties")
     .update({ status })
     .eq("id", propertyId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${propertyId}`)
+
+  await audit.log({
+    action: "property.update_status",
+    entity: "properties",
+    entityId: propertyId,
+    metadata: { status },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties", propertyId))
   return { error: null }
 }
 
@@ -22,19 +48,29 @@ export async function updatePropertyNotes(
   propertyId: string,
   notes: string
 ) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
+
   const { error } = await supabase
     .from("properties")
     .update({ notes })
     .eq("id", propertyId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${propertyId}`)
+
+  await audit.log({
+    action: "property.update_notes",
+    entity: "properties",
+    entityId: propertyId,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties", propertyId))
   return { error: null }
 }
 
 export async function addResident(formData: FormData) {
-  const supabase = createClient()
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const firstName = (formData.get("first_name") as string) || ""
   const lastName = (formData.get("last_name") as string) || ""
@@ -43,6 +79,7 @@ export async function addResident(formData: FormData) {
 
   // Write both old and new columns for backward compatibility
   const data: Record<string, unknown> = {
+    tenant_id: tenantId,
     property_id: formData.get("property_id") as string,
     full_name: fullName,
     email: (formData.get("email") as string) || null,
@@ -69,10 +106,23 @@ export async function addResident(formData: FormData) {
     // New columns not available yet, skip
   }
 
-  const { error } = await supabase.from("residents").insert(data)
+  const { data: row, error } = await supabase
+    .from("residents")
+    .insert(data)
+    .select("id")
+    .single()
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${data.property_id}`)
-  revalidatePath("/dashboard/properties")
+
+  await audit.log({
+    action: "resident.create",
+    entity: "residents",
+    entityId: row?.id,
+    metadata: { property_id: data.property_id, relationship },
+  })
+
+  for (const p of propertyPaths(tenantSlug, data.property_id as string)) {
+    revalidatePath(p)
+  }
   return { error: null }
 }
 
@@ -81,7 +131,8 @@ export async function updateResident(
   propertyId: string,
   formData: FormData
 ) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const firstName = (formData.get("first_name") as string) || ""
   const lastName = (formData.get("last_name") as string) || ""
@@ -117,8 +168,17 @@ export async function updateResident(
     .update(data)
     .eq("id", residentId)
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${propertyId}`)
-  revalidatePath("/dashboard/properties")
+
+  await audit.log({
+    action: "resident.update",
+    entity: "residents",
+    entityId: residentId,
+    metadata: { property_id: propertyId, relationship },
+  })
+
+  for (const p of propertyPaths(tenantSlug, propertyId)) {
+    revalidatePath(p)
+  }
   return { error: null }
 }
 
@@ -126,7 +186,8 @@ export async function moveOutResident(
   residentId: string,
   propertyId: string
 ) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -154,15 +215,26 @@ export async function moveOutResident(
     .eq("id", residentId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${propertyId}`)
-  revalidatePath("/dashboard/properties")
+
+  await audit.log({
+    action: "resident.move_out",
+    entity: "residents",
+    entityId: residentId,
+    metadata: { property_id: propertyId, move_out_date: today },
+  })
+
+  for (const p of propertyPaths(tenantSlug, propertyId)) {
+    revalidatePath(p)
+  }
   return { error: null }
 }
 
 export async function recordPayment(formData: FormData) {
-  const supabase = createClient()
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const data = {
+    tenant_id: tenantId,
     property_id: formData.get("property_id") as string,
     resident_id: (formData.get("resident_id") as string) || null,
     amount: parseFloat(formData.get("amount") as string),
@@ -174,9 +246,25 @@ export async function recordPayment(formData: FormData) {
     notes: (formData.get("notes") as string) || null,
   }
 
-  const { error } = await supabase.from("payments").insert(data)
+  const { data: row, error } = await supabase
+    .from("payments")
+    .insert(data)
+    .select("id")
+    .single()
   if (error) return { error: error.message }
-  revalidatePath(`/dashboard/properties/${data.property_id}`)
+
+  await audit.log({
+    action: "payment.create",
+    entity: "payments",
+    entityId: row?.id,
+    metadata: {
+      property_id: data.property_id,
+      amount: data.amount,
+      status: data.status,
+    },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties", data.property_id))
   return { error: null }
 }
 

@@ -10,6 +10,8 @@ import {
   LogOut,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { useTenant } from "@/components/tenant-provider"
+import { tenantPath } from "@/lib/tenant-path"
 import {
   Avatar,
   AvatarFallback,
@@ -17,10 +19,10 @@ import {
 } from "@/components/ui/avatar"
 
 const NAV_ITEMS = [
-  { title: "My Home", href: "/portal", icon: Home },
-  { title: "Community", href: "/portal/community", icon: Users },
-  { title: "Account", href: "/portal/account", icon: UserCircle },
-]
+  { title: "My Home", segment: "portal", icon: Home },
+  { title: "Community", segment: "portal/community", icon: Users },
+  { title: "Account", segment: "portal/account", icon: UserCircle },
+] as const
 
 export function PortalShell({
   user,
@@ -35,6 +37,8 @@ export function PortalShell({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const { slug, tenantName } = useTenant()
+  const portalRoot = tenantPath(slug, "portal")
 
   async function handleLogout() {
     const supabase = createClient()
@@ -56,7 +60,7 @@ export function PortalShell({
       <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           {/* Logo + HOA Name */}
-          <Link href="/portal" className="flex items-center gap-3">
+          <Link href={portalRoot} className="flex items-center gap-3">
             <Image
               src={process.env.NEXT_PUBLIC_HOA_LOGO_URL || "/logo.svg"}
               alt="HOA"
@@ -65,22 +69,23 @@ export function PortalShell({
               className="rounded"
             />
             <span className="hidden text-lg font-bold text-[#1e3a5f] sm:block">
-              Madison Park HOA
+              {tenantName}
             </span>
           </Link>
 
           {/* Nav Links */}
           <nav className="flex items-center gap-1">
             {NAV_ITEMS.map((item) => {
+              const href = tenantPath(slug, item.segment)
               const isActive =
-                item.href === "/portal"
-                  ? pathname === "/portal"
-                  : pathname.startsWith(item.href)
+                item.segment === "portal"
+                  ? pathname === portalRoot
+                  : pathname.startsWith(href)
               const Icon = item.icon
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={item.segment}
+                  href={href}
                   className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
                       ? "bg-blue-50 text-blue-700"
@@ -122,15 +127,16 @@ export function PortalShell({
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white lg:hidden">
         <div className="flex">
           {NAV_ITEMS.map((item) => {
+            const href = tenantPath(slug, item.segment)
             const isActive =
-              item.href === "/portal"
-                ? pathname === "/portal"
-                : pathname.startsWith(item.href)
+              item.segment === "portal"
+                ? pathname === portalRoot
+                : pathname.startsWith(href)
             const Icon = item.icon
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={item.segment}
+                href={href}
                 className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${
                   isActive ? "text-blue-600" : "text-gray-500"
                 }`}

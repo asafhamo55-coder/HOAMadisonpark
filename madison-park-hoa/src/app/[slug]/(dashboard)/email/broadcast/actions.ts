@@ -2,20 +2,26 @@
 
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
-import { createClient } from "@/lib/supabase/server"
-import { getCurrentUser } from "@/lib/auth"
+
+import { audit } from "@/lib/audit"
+import {
+  getEmailFromAddress,
+  loadTenantEmailContext,
+} from "@/lib/email/tenant-email"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const SEND_ROLES: TenantRole[] = ["owner", "admin", "board"]
 
 function getResend() {
   const key = process.env.RESEND_API_KEY?.trim()
   if (!key) throw new Error("RESEND_API_KEY is not set")
   if (!key.startsWith("re_")) {
-    throw new Error(`RESEND_API_KEY has invalid format (starts with "${key.slice(0, 3)}...", expected "re_...")`)
+    throw new Error(
+      `RESEND_API_KEY has invalid format (starts with "${key.slice(0, 3)}...", expected "re_...")`,
+    )
   }
   return new Resend(key)
-}
-
-function getFromAddress() {
-  return process.env.EMAIL_FROM || process.env.HOA_FROM_EMAIL || "Madison Park HOA <onboarding@resend.dev>"
 }
 
 export type BroadcastRecipient = {
@@ -50,12 +56,26 @@ export async function sendBroadcast({
   bodyTemplate: string
   type: string
 }): Promise<BroadcastResult> {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-
-  if (!user) {
-    return { total: 0, sent: 0, failed: 0, results: [{ recipientEmail: "", residentName: "", success: false, error: "Unauthorized" }] }
+  const { supabase, role, tenantId, tenantSlug, userId } =
+    await requireTenantContext()
+  if (!SEND_ROLES.includes(role)) {
+    return {
+      total: 0,
+      sent: 0,
+      failed: 0,
+      results: [
+        {
+          recipientEmail: "",
+          residentName: "",
+          success: false,
+          error: "Forbidden",
+        },
+      ],
+    }
   }
+
+  const tenantEmail = await loadTenantEmailContext(supabase, tenantId)
+  const fromAddress = getEmailFromAddress(tenantEmail)
 
   const results: BroadcastResult["results"] = []
 
@@ -64,16 +84,16 @@ export async function sendBroadcast({
     const personalizedBody = bodyTemplate
       .replace(/\{\{resident_name\}\}/g, recipient.full_name)
       .replace(/\{\{property_address\}\}/g, recipient.property_address)
-      .replace(/\{\{hoa_name\}\}/g, "Madison Park Homeowners Association")
+      .replace(/\{\{hoa_name\}\}/g, tenantEmail.legalName ?? tenantEmail.name)
       .replace(/\{\{board_president_name\}\}/g, "The Board")
 
     const personalizedSubject = subject
       .replace(/\{\{resident_name\}\}/g, recipient.full_name)
       .replace(/\{\{property_address\}\}/g, recipient.property_address)
-      .replace(/\{\{hoa_name\}\}/g, "Madison Park HOA")
+      .replace(/\{\{hoa_name\}\}/g, tenantEmail.name)
 
     const { data, error } = await getResend().emails.send({
-      from: getFromAddress(),
+      from: fromAddress,
       to: [recipient.email],
       subject: personalizedSubject,
       html: personalizedBody,
@@ -88,22 +108,34 @@ export async function sendBroadcast({
       messageId: data?.id,
     })
 
-    // Save to letters table
+    // Save to letters table — RLS will clamp to tenant.
     await supabase.from("letters").insert({
+      tenant_id: tenantId,
       property_id: recipient.property_id,
       resident_id: recipient.id,
       type,
       subject: personalizedSubject,
       body_html: personalizedBody,
       sent_at: success ? new Date().toISOString() : null,
-      sent_by: user.id,
+      sent_by: userId,
       recipient_email: recipient.email,
       resend_message_id: data?.id || null,
       status: success ? "sent" : "failed",
     })
   }
 
-  revalidatePath("/dashboard/email")
+  await audit.log({
+    action: "email.broadcast",
+    entity: "letters",
+    metadata: {
+      type,
+      recipient_count: recipients.length,
+      sent: results.filter((r) => r.success).length,
+      failed: results.filter((r) => !r.success).length,
+    },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "email"))
 
   return {
     total: recipients.length,
