@@ -43,20 +43,43 @@ This is the canonical schema. Every stream references it.
 
 ## Migration order
 
-Run migrations in this order:
+Run migrations in this order. (Numbering reflects the actual files in
+`madison-park-hoa/supabase/migrations/`. Stream A landed migrations 008–011;
+later streams will append from 012 onward.)
 
-1. `001_extensions.sql` — `pgcrypto`, `pg_trgm`, `vector`
-2. `002_tenants.sql` — tenants, memberships, invitations, helper functions (Stream A)
-3. `003_plans_billing.sql` — plans, subscriptions, invoices, usage_events, addons (Stream D)
-4. `004_tenant_settings.sql` — tenant_settings, knowledge_base, letter_templates, violation_categories (Stream E)
-5. `005_audit.sql` — audit_log, platform_audit_log (Stream A)
-6. `006_existing_tables_alter.sql` — add tenant_id to all existing tables (Stream G)
-7. `007_madison_park_backfill.sql` — populate Madison Park data (Stream A/G)
-8. `008_rls_policies.sql` — apply standard tenant RLS to every business table
-9. `009_storage_policies.sql` — storage bucket access scoped by tenant_id path
-10. `010_seed_plans.sql` — insert plan rows
-11. `011_seed_default_templates.sql` — system letter templates and violation categories
-12. `012_indexes.sql` — performance indexes (tenant_id, created_at composite)
+**Already in repo (pre-Stream-A):**
+
+1. `001_init.sql` — original single-tenant schema (Madison Park)
+2. `002_hoa_settings_and_audit.sql` — settings, original (single-tenant) audit_log
+3. `003_requests_table.sql` — resident maintenance/ARC requests
+4. `004_notifications_and_indexes.sql` — notifications + indexes + triggers
+5. `005_storage_buckets.sql` — original (single-tenant) storage policies
+6. `006_properties_residents_improvements.sql` — schema enhancements
+7. `007_email_attachments_and_activity.sql` — email attachments bucket
+
+**Stream A (Foundation & Multi-Tenant Core):**
+
+8. `008_tenants_and_helpers.sql` — tenants, memberships, invitations + helper
+   SQL functions (`current_tenant_id`, `user_has_tenant_access`,
+   `user_role_in_tenant`, `set_request_tenant`, `apply_tenant_rls`)
+9. `009_audit_log.sql` — extends `audit_log` for tenant scoping; creates
+   `platform_audit_log` for service-role / cross-tenant ops
+10. `010_existing_tables_alter.sql` — adds `tenant_id NOT NULL` to all 14
+    existing business tables, backfills Madison Park, drops legacy
+    role-based RLS, applies the standard tenant clamp via
+    `apply_tenant_rls()`. Row-count audit recorded in
+    `tenant_backfill_audit`.
+11. `011_storage_policies.sql` — replaces single-tenant storage policies with
+    a tenant-id-prefix-based clamp on the existing buckets (violations,
+    documents, logos, email-attachments).
+
+**Future (per other streams):**
+
+12. `012_plans_billing.sql` — plans, subscriptions, invoices, usage_events, addons (Stream D)
+13. `013_tenant_settings.sql` — tenant_settings, knowledge_base, letter_templates, violation_categories (Stream E)
+14. `014_seed_plans.sql` — insert plan rows (Stream D)
+15. `015_seed_default_templates.sql` — system letter templates and violation categories (Stream E)
+16. `016_indexes.sql` — additional performance indexes as new query patterns emerge
 
 ---
 
