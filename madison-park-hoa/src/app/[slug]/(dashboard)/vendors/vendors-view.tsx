@@ -4,6 +4,8 @@ import { useState, useMemo, useTransition } from "react"
 import { Star, Phone, Plus, Search, Eye, Briefcase, X } from "lucide-react"
 import type { Vendor } from "./page-data"
 import { createVendor, updateVendorRating, updateVendorNotes } from "./actions"
+import { useTenantSlug } from "@/hooks/use-tenant-slug"
+import { tenantPath } from "@/lib/tenant-path"
 
 const CATEGORIES = [
   "All",
@@ -206,11 +208,13 @@ function VendorDetailModal({
   jobs,
   onClose,
   canManage,
+  jobsHref,
 }: {
   vendor: Vendor
   jobs: VendorJob[]
   onClose: () => void
   canManage: boolean
+  jobsHref: string
 }) {
   const [notes, setNotes] = useState(vendor.notes || "")
   const [saving, startSaving] = useTransition()
@@ -361,7 +365,7 @@ function VendorDetailModal({
 
         {canManage && (
           <a
-            href="/dashboard/vendors/jobs"
+            href={jobsHref}
             className="inline-flex items-center gap-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
             <Briefcase className="h-4 w-4" /> Assign New Job
@@ -390,6 +394,8 @@ export function VendorsView({
   vendors: Vendor[]
   canManage: boolean
 }) {
+  const slug = useTenantSlug()
+  const jobsHref = tenantPath(slug, "vendors", "jobs")
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("All")
   const [activeOnly, setActiveOnly] = useState(false)
@@ -433,7 +439,7 @@ export function VendorsView({
         <h1 className="text-2xl font-bold">Vendor Directory</h1>
         <div className="flex items-center gap-3">
           <a
-            href="/dashboard/vendors/jobs"
+            href={jobsHref}
             className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50"
           >
             Work Orders
@@ -568,7 +574,7 @@ export function VendorsView({
                   </button>
                   {canManage && (
                     <a
-                      href="/dashboard/vendors/jobs"
+                      href={jobsHref}
                       className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium hover:bg-gray-50"
                     >
                       <Briefcase className="h-3 w-3" /> New Job
@@ -603,6 +609,7 @@ export function VendorsView({
           jobs={detailJobs}
           onClose={() => setDetailVendor(null)}
           canManage={canManage}
+          jobsHref={jobsHref}
         />
       )}
     </div>
