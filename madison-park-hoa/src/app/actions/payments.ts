@@ -1,19 +1,26 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
-import { getCurrentUser } from "@/lib/auth"
+
+import { audit } from "@/lib/audit"
 import { sendEmail } from "@/lib/email/send"
+import { loadTenantEmailContext } from "@/lib/email/tenant-email"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const WRITE_ROLES: TenantRole[] = ["owner", "admin", "board"]
+
+function assertCanWrite(role: TenantRole) {
+  if (!WRITE_ROLES.includes(role)) throw new Error("Forbidden")
+}
 
 /* ── Generate Dues ───────────────────────────────────────── */
 
 export async function generateDuesForPeriod(period: string, amount: number) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  if (!WRITE_ROLES.includes(role)) {
+    return { error: "Forbidden" }
   }
-
-  const supabase = createClient()
 
   // Get all active properties with current residents
   const { data: properties } = await supabase
@@ -32,7 +39,9 @@ export async function generateDuesForPeriod(period: string, amount: number) {
     .eq("period", period)
 
   if (count && count > 0) {
-    return { error: `Dues for ${period} already exist (${count} records). Delete them first to regenerate.` }
+    return {
+      error: `Dues for ${period} already exist (${count} records). Delete them first to regenerate.`,
+    }
   }
 
   // Calculate default due date (first of next quarter)
@@ -41,9 +50,10 @@ export async function generateDuesForPeriod(period: string, amount: number) {
   const records = properties.map((p) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const currentResident = (p.residents as any[])?.find(
-      (r: { is_current: boolean }) => r.is_current
+      (r: { is_current: boolean }) => r.is_current,
     )
     return {
+      tenant_id: tenantId,
       property_id: p.id,
       resident_id: currentResident?.id || null,
       amount,
@@ -57,7 +67,13 @@ export async function generateDuesForPeriod(period: string, amount: number) {
 
   if (error) return { error: error.message }
 
-  revalidatePath("/dashboard/payments")
+  await audit.log({
+    action: "payment.generate_dues",
+    entity: "payments",
+    metadata: { period, amount, count: records.length },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "payments"))
   return { error: null, count: records.length }
 }
 
@@ -82,12 +98,8 @@ export async function recordPayment(data: {
   paid_date: string
   notes?: string
 }) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
-
-  const supabase = createClient()
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   // Find existing pending/overdue payment for this property+period
   const { data: existing } = await supabase
@@ -113,6 +125,18 @@ export async function recordPayment(data: {
       .eq("id", existing.id)
 
     if (error) return { error: error.message }
+
+    await audit.log({
+      action: "payment.record",
+      entity: "payments",
+      entityId: existing.id,
+      metadata: {
+        property_id: data.property_id,
+        amount: data.amount,
+        period: data.period,
+        method: data.payment_method,
+      },
+    })
   } else {
     // Get current resident for this property
     const { data: resident } = await supabase
@@ -124,73 +148,103 @@ export async function recordPayment(data: {
       .single()
 
     // Create new paid record
-    const { error } = await supabase.from("payments").insert({
-      property_id: data.property_id,
-      resident_id: resident?.id || null,
-      amount: data.amount,
-      period: data.period,
-      paid_date: data.paid_date,
-      payment_method: data.payment_method,
-      status: "paid",
-      notes: data.notes || null,
-    })
+    const { data: row, error } = await supabase
+      .from("payments")
+      .insert({
+        tenant_id: tenantId,
+        property_id: data.property_id,
+        resident_id: resident?.id || null,
+        amount: data.amount,
+        period: data.period,
+        paid_date: data.paid_date,
+        payment_method: data.payment_method,
+        status: "paid",
+        notes: data.notes || null,
+      })
+      .select("id")
+      .single()
 
     if (error) return { error: error.message }
+
+    await audit.log({
+      action: "payment.record_new",
+      entity: "payments",
+      entityId: row?.id,
+      metadata: {
+        property_id: data.property_id,
+        amount: data.amount,
+        period: data.period,
+        method: data.payment_method,
+      },
+    })
   }
 
-  revalidatePath("/dashboard/payments")
+  revalidatePath(tenantPath(tenantSlug, "payments"))
   return { error: null }
 }
 
 /* ── Waive Payment ───────────────────────────────────────── */
 
 export async function waivePayment(id: string, reason: string) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantSlug, userId } = await requireTenantContext()
+  assertCanWrite(role)
 
   if (!reason.trim()) {
     return { error: "Reason is required to waive a payment" }
   }
 
-  const supabase = createClient()
+  const { data: actor } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle()
+
   const { error } = await supabase
     .from("payments")
     .update({
       status: "waived",
-      notes: `Waived by ${user.full_name || "admin"}: ${reason}`,
+      notes: `Waived by ${actor?.full_name || "admin"}: ${reason}`,
     })
     .eq("id", id)
 
   if (error) return { error: error.message }
 
-  revalidatePath("/dashboard/payments")
+  await audit.log({
+    action: "payment.waive",
+    entity: "payments",
+    entityId: id,
+    metadata: { reason },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "payments"))
   return { error: null }
 }
 
 /* ── Send Payment Reminders ──────────────────────────────── */
 
 export async function sendPaymentReminders(period: string) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized", sent: 0 }
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  if (!WRITE_ROLES.includes(role)) {
+    return { error: "Forbidden", sent: 0 }
   }
-
-  const supabase = createClient()
 
   // Get all pending/overdue payments for the period with resident + property data
   const { data: payments } = await supabase
     .from("payments")
     .select(
-      "id, amount, due_date, period, property_id, properties(address), residents(full_name, email)"
+      "id, amount, due_date, period, property_id, properties(address), residents(full_name, email)",
     )
     .eq("period", period)
     .in("status", ["pending", "overdue"])
 
   if (!payments || payments.length === 0) {
-    return { error: "No pending/overdue payments found for this period", sent: 0 }
+    return {
+      error: "No pending/overdue payments found for this period",
+      sent: 0,
+    }
   }
+
+  const tenantEmail = await loadTenantEmailContext(supabase, tenantId)
 
   let sent = 0
   const errors: string[] = []
@@ -221,14 +275,27 @@ export async function sendPaymentReminders(period: string) {
             : "—",
           period: p.period || "",
         },
+        tenant: tenantEmail,
       })
       sent++
     } catch (e) {
       errors.push(
-        `${email}: ${e instanceof Error ? e.message : "Unknown error"}`
+        `${email}: ${e instanceof Error ? e.message : "Unknown error"}`,
       )
     }
   }
+
+  await audit.log({
+    action: "payment.send_reminders",
+    metadata: {
+      period,
+      sent,
+      total: payments.length,
+      failed: errors.length,
+    },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "payments"))
 
   return {
     error: errors.length > 0 ? `${errors.length} emails failed` : null,
