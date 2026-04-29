@@ -1,9 +1,18 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
-import { getCurrentUser } from "@/lib/auth"
+
+import { audit } from "@/lib/audit"
 import { sendEmail } from "@/lib/email/send"
+import { loadTenantEmailContext } from "@/lib/email/tenant-email"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const WRITE_ROLES: TenantRole[] = ["owner", "admin", "board"]
+
+function assertCanWrite(role: TenantRole) {
+  if (!WRITE_ROLES.includes(role)) throw new Error("Forbidden")
+}
 
 export type AnnouncementInput = {
   title: string
@@ -16,52 +25,54 @@ export type AnnouncementInput = {
 }
 
 export async function createAnnouncement(input: AnnouncementInput) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantId, tenantSlug, userId } =
+    await requireTenantContext()
+  assertCanWrite(role)
 
   const published_at = input.publish_now ? new Date().toISOString() : null
 
   const { data, error } = await supabase
     .from("announcements")
     .insert({
+      tenant_id: tenantId,
       title: input.title,
       body: input.body,
       type: input.type,
       send_email: input.send_email,
       published_at,
       expires_at: input.expires_at || null,
-      created_by: user.id,
+      created_by: userId,
     })
     .select("id")
     .single()
 
   if (error) return { error: error.message }
 
+  await audit.log({
+    action: "announcement.create",
+    entity: "announcements",
+    entityId: data.id,
+    metadata: { type: input.type, publish_now: input.publish_now },
+  })
+
   // If publish now and send email, broadcast immediately
   if (input.publish_now && input.send_email && data) {
     const emailResult = await sendAnnouncementEmail(data.id)
     if (emailResult.error) {
-      // Announcement created, but email failed — report partial success
-      revalidatePath("/dashboard/announcements")
-      revalidatePath("/dashboard")
+      revalidatePath(tenantPath(tenantSlug, "announcements"))
+      revalidatePath(tenantPath(tenantSlug))
       return { error: null, emailError: emailResult.error, id: data.id }
     }
   }
 
-  revalidatePath("/dashboard/announcements")
-  revalidatePath("/dashboard")
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
+  revalidatePath(tenantPath(tenantSlug))
   return { error: null, id: data.id }
 }
 
 export async function publishAnnouncement(id: string) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("announcements")
@@ -69,17 +80,21 @@ export async function publishAnnouncement(id: string) {
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/announcements")
-  revalidatePath("/dashboard")
+
+  await audit.log({
+    action: "announcement.publish",
+    entity: "announcements",
+    entityId: id,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
+  revalidatePath(tenantPath(tenantSlug))
   return { error: null }
 }
 
 export async function unpublishAnnouncement(id: string) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("announcements")
@@ -87,8 +102,15 @@ export async function unpublishAnnouncement(id: string) {
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/announcements")
-  revalidatePath("/dashboard")
+
+  await audit.log({
+    action: "announcement.unpublish",
+    entity: "announcements",
+    entityId: id,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
+  revalidatePath(tenantPath(tenantSlug))
   return { error: null }
 }
 
@@ -101,11 +123,8 @@ export async function updateAnnouncement(
     expires_at?: string | null
   }
 ) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("announcements")
@@ -113,17 +132,22 @@ export async function updateAnnouncement(
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/announcements")
-  revalidatePath("/dashboard")
+
+  await audit.log({
+    action: "announcement.update",
+    entity: "announcements",
+    entityId: id,
+    metadata: updates,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
+  revalidatePath(tenantPath(tenantSlug))
   return { error: null }
 }
 
 export async function deleteAnnouncement(id: string) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized" }
-  }
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("announcements")
@@ -131,16 +155,22 @@ export async function deleteAnnouncement(id: string) {
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/announcements")
-  revalidatePath("/dashboard")
+
+  await audit.log({
+    action: "announcement.delete",
+    entity: "announcements",
+    entityId: id,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
+  revalidatePath(tenantPath(tenantSlug))
   return { error: null }
 }
 
 export async function sendAnnouncementEmail(announcementId: string) {
-  const supabase = createClient()
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Unauthorized", sent: 0 }
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  if (!WRITE_ROLES.includes(role)) {
+    return { error: "Forbidden", sent: 0 }
   }
 
   // Fetch announcement
@@ -165,6 +195,8 @@ export async function sendAnnouncementEmail(announcementId: string) {
     return { error: "No recipients found", sent: 0 }
   }
 
+  const tenantEmail = await loadTenantEmailContext(supabase, tenantId)
+
   let sent = 0
   const errors: string[] = []
 
@@ -173,7 +205,7 @@ export async function sendAnnouncementEmail(announcementId: string) {
     try {
       await sendEmail({
         to: resident.email,
-        subject: `${announcement.title} — Madison Park HOA`,
+        subject: `${announcement.title} — ${tenantEmail.name}`,
         template: "general-announcement",
         props: {
           subject: announcement.title,
@@ -183,13 +215,14 @@ export async function sendAnnouncementEmail(announcementId: string) {
             month: "long",
             day: "numeric",
           }),
-          fromName: "Madison Park HOA Board",
+          fromName: `${tenantEmail.name} Board`,
         },
+        tenant: tenantEmail,
       })
       sent++
     } catch (e) {
       errors.push(
-        `${resident.email}: ${e instanceof Error ? e.message : "Unknown error"}`
+        `${resident.email}: ${e instanceof Error ? e.message : "Unknown error"}`,
       )
     }
   }
@@ -200,7 +233,14 @@ export async function sendAnnouncementEmail(announcementId: string) {
     .update({ send_email: true })
     .eq("id", announcementId)
 
-  revalidatePath("/dashboard/announcements")
+  await audit.log({
+    action: "announcement.send_email",
+    entity: "announcements",
+    entityId: announcementId,
+    metadata: { sent, total: residents.length, failed: errors.length },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "announcements"))
 
   return {
     error: errors.length > 0 ? `${errors.length} emails failed` : null,
@@ -210,7 +250,7 @@ export async function sendAnnouncementEmail(announcementId: string) {
 }
 
 export async function getResidentCount() {
-  const supabase = createClient()
+  const { supabase } = await requireTenantContext()
   const { count } = await supabase
     .from("profiles")
     .select("id", { count: "exact", head: true })

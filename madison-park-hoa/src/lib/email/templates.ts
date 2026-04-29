@@ -44,11 +44,32 @@ export const templates: Record<TemplateName, React.ComponentType<any>> = {
   "payment-reminder": PaymentReminder,
 }
 
+/**
+ * Per-template subject lines. The `${name}` placeholder is replaced at
+ * send time with the active tenant's display name. Used as a default
+ * subject when callers don't pass an explicit one.
+ */
+export const templateSubjectFns: Record<TemplateName, (name: string) => string> = {
+  "violation-notice": (name) => `Violation Notice — ${name}`,
+  "warning-letter": (name) => `Warning: Unresolved Violation — ${name}`,
+  "fine-notice": (name) => `Fine Notice — ${name}`,
+  "welcome-letter": (name) => `Welcome to ${name}!`,
+  "general-announcement": (name) => `Community Update — ${name}`,
+  "payment-reminder": (name) => `HOA Dues Reminder — ${name}`,
+}
+
+/**
+ * @deprecated Use `templateSubjectFns[name](tenantName)` instead. This
+ * legacy export is kept for backwards compatibility with callers that
+ * have not yet been threaded with tenant context. It hardcodes "Your HOA"
+ * so the resulting email is obviously generic if it slips through.
+ */
 export const templateSubjects: Record<TemplateName, string> = {
-  "violation-notice": "Violation Notice — Madison Park HOA",
-  "warning-letter": "Warning: Unresolved Violation — Madison Park HOA",
-  "fine-notice": "Fine Notice — Madison Park HOA",
-  "welcome-letter": "Welcome to Madison Park!",
-  "general-announcement": "Community Update — Madison Park HOA",
-  "payment-reminder": "HOA Dues Reminder — Madison Park HOA",
+  "violation-notice": templateSubjectFns["violation-notice"]("Your HOA"),
+  "warning-letter": templateSubjectFns["warning-letter"]("Your HOA"),
+  "fine-notice": templateSubjectFns["fine-notice"]("Your HOA"),
+  "welcome-letter": templateSubjectFns["welcome-letter"]("Your HOA"),
+  "general-announcement":
+    templateSubjectFns["general-announcement"]("Your HOA"),
+  "payment-reminder": templateSubjectFns["payment-reminder"]("Your HOA"),
 }

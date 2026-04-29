@@ -1,51 +1,29 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
-import { createAdminClient } from "@/lib/supabase/admin"
-import { getCurrentUser } from "@/lib/auth"
+
+import { withAdminClient } from "@/lib/admin"
+import { audit } from "@/lib/audit"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const ADMIN_ROLES: TenantRole[] = ["owner", "admin"]
+const READ_AUDIT_ROLES: TenantRole[] = ["owner", "admin", "board"]
 
 /* ── Helpers ──────────────────────────────────────────────── */
 
-async function requireAdmin() {
-  const user = await getCurrentUser()
-  if (!user || user.role !== "admin") {
+async function requireAdminContext() {
+  const ctx = await requireTenantContext()
+  if (!ADMIN_ROLES.includes(ctx.role)) {
     throw new Error("Unauthorized — admin only")
   }
-  return user
+  return ctx
 }
 
-async function requireAdminOrBoard() {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    throw new Error("Unauthorized")
-  }
-  return user
-}
-
-async function logAction(
-  userId: string,
-  userName: string,
-  action: string,
-  entityType?: string,
-  entityId?: string,
-  details?: Record<string, unknown>
-) {
-  const supabase = createClient()
-  await supabase.from("audit_log").insert({
-    user_id: userId,
-    user_name: userName,
-    action,
-    entity_type: entityType || null,
-    entity_id: entityId || null,
-    details: details || null,
-  })
-}
-
-/* ── HOA Profile ─────────────────────────────────────────── */
+/* ── HOA Profile (legacy hoa_settings) ───────────────────── */
 
 export async function getSettings(key: string) {
-  const supabase = createClient()
+  const { supabase } = await requireTenantContext()
   const { data } = await supabase
     .from("hoa_settings")
     .select("value")
@@ -55,45 +33,42 @@ export async function getSettings(key: string) {
 }
 
 export async function updateSettings(key: string, value: unknown) {
-  const user = await requireAdmin()
-  const supabase = createClient()
+  const { supabase, tenantId, tenantSlug, userId } = await requireAdminContext()
 
-  const { error } = await supabase
-    .from("hoa_settings")
-    .upsert({
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-      updated_by: user.id,
-    })
+  const { error } = await supabase.from("hoa_settings").upsert({
+    tenant_id: tenantId,
+    key,
+    value,
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  })
 
   if (error) return { error: error.message }
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    `Updated settings: ${key}`,
-    "hoa_settings",
-    key
-  )
+  await audit.log({
+    action: "settings.update",
+    entity: "hoa_settings",
+    entityId: key,
+    metadata: { key, value },
+  })
 
-  revalidatePath("/dashboard/settings")
+  revalidatePath(tenantPath(tenantSlug, "settings"))
   return { error: null }
 }
 
 /* ── Logo Upload ─────────────────────────────────────────── */
 
 export async function uploadLogo(formData: FormData) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
+  const { supabase, tenantId, tenantSlug, userId } = await requireAdminContext()
   const file = formData.get("logo") as File | null
 
   if (!file || !file.size) return { error: "No file provided" }
 
   const ext = file.name.split(".").pop() || "png"
-  const storagePath = `branding/logo-${Date.now()}.${ext}`
+  // Storage path scoped to tenant prefix per Stream A storage policies.
+  const storagePath = `${tenantId}/branding/logo-${Date.now()}.${ext}`
 
-  const { error: uploadError } = await admin.storage
+  const { error: uploadError } = await supabase.storage
     .from("documents")
     .upload(storagePath, file, {
       contentType: file.type,
@@ -104,10 +79,9 @@ export async function uploadLogo(formData: FormData) {
 
   const {
     data: { publicUrl },
-  } = admin.storage.from("documents").getPublicUrl(storagePath)
+  } = supabase.storage.from("documents").getPublicUrl(storagePath)
 
   // Update hoa_profile setting with new logo URL
-  const supabase = createClient()
   const { data: current } = await supabase
     .from("hoa_settings")
     .select("value")
@@ -118,127 +92,182 @@ export async function uploadLogo(formData: FormData) {
   profile.logo_url = publicUrl
 
   await supabase.from("hoa_settings").upsert({
+    tenant_id: tenantId,
     key: "hoa_profile",
     value: profile,
     updated_at: new Date().toISOString(),
-    updated_by: user.id,
+    updated_by: userId,
   })
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    "Uploaded HOA logo",
-    "hoa_settings",
-    "hoa_profile"
-  )
+  await audit.log({
+    action: "settings.upload_logo",
+    entity: "hoa_settings",
+    entityId: "hoa_profile",
+    metadata: { storage_path: storagePath },
+  })
 
-  revalidatePath("/dashboard/settings")
+  revalidatePath(tenantPath(tenantSlug, "settings"))
   return { error: null, url: publicUrl }
 }
 
 /* ── User Management ─────────────────────────────────────── */
 
 export async function getAllProfiles() {
-  const supabase = createClient()
-  const { data } = await supabase
+  // Admin-only read of profiles for this tenant. RLS ensures we only
+  // see profiles linked via tenant_memberships to the active tenant.
+  await requireAdminContext()
+  const { supabase, tenantId } = await requireTenantContext()
+
+  // Pull memberships first, then join profiles.
+  const { data: memberships } = await supabase
+    .from("tenant_memberships")
+    .select("user_id, role, status")
+    .eq("tenant_id", tenantId)
+
+  const userIds = (memberships ?? []).map((m) => m.user_id)
+  if (userIds.length === 0) return []
+
+  const { data: profiles } = await supabase
     .from("profiles")
     .select("id, full_name, email, role, created_at")
+    .in("id", userIds)
     .order("full_name", { ascending: true })
-  return data || []
+
+  return profiles || []
 }
 
 export async function updateUserRole(
   userId: string,
-  role: "admin" | "board" | "resident" | "vendor"
+  role: TenantRole,
 ) {
-  const user = await requireAdmin()
-  const supabase = createClient()
+  const ctx = await requireAdminContext()
+  if (userId === ctx.userId) return { error: "Cannot change your own role" }
 
-  if (userId === user.id) return { error: "Cannot change your own role" }
+  // Membership role is the source of truth for tenant access. We
+  // update tenant_memberships.role rather than the global profiles.role.
+  const { error: memberError } = await ctx.supabase
+    .from("tenant_memberships")
+    .update({ role })
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", userId)
 
-  const { error } = await supabase
+  if (memberError) return { error: memberError.message }
+
+  // Best-effort: keep the legacy profiles.role in sync for the existing
+  // single-tenant UI bits that haven't been migrated yet.
+  await ctx.supabase
     .from("profiles")
     .update({ role })
     .eq("id", userId)
 
-  if (error) return { error: error.message }
+  await audit.log({
+    action: "membership.update_role",
+    entity: "tenant_memberships",
+    entityId: userId,
+    metadata: { role },
+  })
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    `Changed user role to ${role}`,
-    "profiles",
-    userId
-  )
-
-  revalidatePath("/dashboard/settings")
+  revalidatePath(tenantPath(ctx.tenantSlug, "settings"))
   return { error: null }
 }
 
-export async function inviteUser(email: string, role: string) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
+export async function inviteUser(email: string, role: TenantRole) {
+  const ctx = await requireAdminContext()
 
-  // Use Supabase admin to invite user via magic link
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { role },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/dashboard`,
-  })
+  // Inviting a user requires the service-role client because we may
+  // be creating a new auth.users row. Goes through `withAdminClient`
+  // so the operation is fully audited in `platform_audit_log`.
+  const result = await withAdminClient(
+    {
+      action: "tenant.invite_user",
+      reason: "admin invited new tenant member",
+      tenantId: ctx.tenantId,
+      entity: "tenant_memberships",
+      metadata: { email, role },
+    },
+    async (admin) => {
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { role, tenant_id: ctx.tenantId },
+        redirectTo: `${
+          process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+        }${tenantPath(ctx.tenantSlug)}`,
+      })
 
-  if (error) return { error: error.message }
+      if (error) throw new Error(error.message)
+      if (!data.user) throw new Error("Invite did not return a user")
 
-  // Create profile entry
-  if (data.user) {
-    await admin.from("profiles").upsert({
-      id: data.user.id,
-      email,
-      role,
-    })
-  }
+      // Create profile entry (legacy single-tenant table).
+      await admin.from("profiles").upsert({
+        id: data.user.id,
+        email,
+        role,
+      })
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    `Invited user: ${email} as ${role}`,
-    "profiles",
-    data.user?.id
+      // Create the tenant membership so the invite actually unlocks
+      // access to this tenant. Stream A's invitation acceptance flow
+      // also handles this; we set it up here as `invited` so the user
+      // sees the tenant after accepting the email link.
+      await admin.from("tenant_memberships").upsert(
+        {
+          tenant_id: ctx.tenantId,
+          user_id: data.user.id,
+          role,
+          status: "invited",
+          invited_by: ctx.userId,
+        },
+        { onConflict: "tenant_id,user_id" },
+      )
+
+      return data.user.id
+    },
   )
 
-  revalidatePath("/dashboard/settings")
+  await audit.log({
+    action: "membership.invite",
+    entity: "tenant_memberships",
+    entityId: result,
+    metadata: { email, role },
+  })
+
+  revalidatePath(tenantPath(ctx.tenantSlug, "settings"))
   return { error: null }
 }
 
 export async function deactivateUser(userId: string) {
-  const user = await requireAdmin()
-  const admin = createAdminClient()
+  const ctx = await requireAdminContext()
+  if (userId === ctx.userId) return { error: "Cannot deactivate yourself" }
 
-  if (userId === user.id) return { error: "Cannot deactivate yourself" }
-
-  // Ban the user using Supabase admin
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    ban_duration: "876000h", // ~100 years
-  })
+  // For multi-tenant safety we *suspend the membership* in this tenant
+  // rather than ban the global auth user — they may still belong to
+  // other tenants.
+  const { error } = await ctx.supabase
+    .from("tenant_memberships")
+    .update({ status: "suspended" })
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", userId)
 
   if (error) return { error: error.message }
 
-  await logAction(
-    user.id,
-    user.full_name || "Admin",
-    "Deactivated user",
-    "profiles",
-    userId
-  )
+  await audit.log({
+    action: "membership.suspend",
+    entity: "tenant_memberships",
+    entityId: userId,
+  })
 
-  revalidatePath("/dashboard/settings")
+  revalidatePath(tenantPath(ctx.tenantSlug, "settings"))
   return { error: null }
 }
 
 /* ── Audit Log ───────────────────────────────────────────── */
 
 export async function getAuditLog(limit = 50) {
-  await requireAdminOrBoard()
-  const supabase = createClient()
-  const { data } = await supabase
+  const ctx = await requireTenantContext()
+  if (!READ_AUDIT_ROLES.includes(ctx.role)) {
+    throw new Error("Unauthorized")
+  }
+
+  // RLS clamps audit_log to current_tenant_id() — no explicit filter.
+  const { data } = await ctx.supabase
     .from("audit_log")
     .select("*")
     .order("created_at", { ascending: false })

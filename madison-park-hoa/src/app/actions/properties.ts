@@ -1,8 +1,17 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getCurrentUser } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
+
+import { audit } from "@/lib/audit"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const WRITE_ROLES: TenantRole[] = ["owner", "admin", "board"]
+
+function assertCanWrite(role: TenantRole) {
+  if (!WRITE_ROLES.includes(role)) throw new Error("Forbidden")
+}
 
 export type AddPropertyInput = {
   address_line1: string
@@ -22,16 +31,12 @@ export type EditPropertyInput = AddPropertyInput & {
 }
 
 export async function addPropertyAction(input: AddPropertyInput) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Not authorized" }
-  }
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   if (!input.address_line1.trim()) {
     return { error: "Street address is required" }
   }
-
-  const supabase = createClient()
 
   const address = [
     input.address_line1.trim(),
@@ -43,6 +48,7 @@ export async function addPropertyAction(input: AddPropertyInput) {
 
   // Core payload uses original columns that always exist
   const payload: Record<string, unknown> = {
+    tenant_id: tenantId,
     address,
     lot_number: input.lot_number?.trim() || null,
     unit: input.address_line2?.trim() || null,
@@ -79,21 +85,24 @@ export async function addPropertyAction(input: AddPropertyInput) {
     return { error: "Failed to create property. Please check your permissions." }
   }
 
-  revalidatePath("/dashboard/properties")
+  await audit.log({
+    action: "property.create",
+    entity: "properties",
+    entityId: data.id,
+    metadata: { address, status: input.status },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties"))
   return { error: null, id: data.id }
 }
 
 export async function editPropertyAction(input: EditPropertyInput) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Not authorized" }
-  }
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   if (!input.address_line1.trim()) {
     return { error: "Street address is required" }
   }
-
-  const supabase = createClient()
 
   const address = [
     input.address_line1.trim(),
@@ -133,18 +142,21 @@ export async function editPropertyAction(input: EditPropertyInput) {
     return { error: error.message }
   }
 
-  revalidatePath("/dashboard/properties")
-  revalidatePath(`/dashboard/properties/${input.id}`)
+  await audit.log({
+    action: "property.update",
+    entity: "properties",
+    entityId: input.id,
+    metadata: { address, status: input.status },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties"))
+  revalidatePath(tenantPath(tenantSlug, "properties", input.id))
   return { error: null }
 }
 
 export async function deletePropertyAction(id: string) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== "admin" && user.role !== "board")) {
-    return { error: "Not authorized" }
-  }
-
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { count } = await supabase
     .from("residents")
@@ -165,12 +177,20 @@ export async function deletePropertyAction(id: string) {
     return { error: error.message }
   }
 
-  revalidatePath("/dashboard/properties")
+  await audit.log({
+    action: "property.delete",
+    entity: "properties",
+    entityId: id,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "properties"))
   return { error: null }
 }
 
 // Check if the migration has been applied by testing for a new column
-async function checkPropertyNewColumns(supabase: ReturnType<typeof createClient>): Promise<boolean> {
+async function checkPropertyNewColumns(
+  supabase: SupabaseClient,
+): Promise<boolean> {
   try {
     const result = await supabase
       .from("properties")
