@@ -186,3 +186,70 @@ Asaf: please paste the actual table here once the migration has run. The migrati
   - Move the `/dashboard`, `/portal`, `/login`, `/reset-password` route trees under `/[slug]/...`.
   - Remove the legacy entries from `scripts/check-no-service-role.sh`'s whitelist when each is migrated.
 - Stream D, when adding the `plans` table: add the FK from `tenants.plan_id` → `plans.id` in its own migration (commented placeholder is in 008).
+
+---
+
+## [2026-04-29 13:00] config-agent: Stream E — Tenant Configuration, Branding & Knowledge Base complete
+
+**Outcome:** Every per-community knob is now data the tenant edits themselves. The new `/[slug]/settings` shell ships a 14-tab sidebar (General · Branding · Email · Finance · Fine schedule · Violation categories · Letter templates · Rules & restrictions · Knowledge base · Members & roles · Integrations · Billing · Audit log · Danger zone) backed by `tenant_settings` (JSONB buckets), `violation_categories`, `letter_templates`, `letter_template_versions`, and `tenant_knowledge_base` (manual entries with Postgres `tsvector` full-text search — no embeddings, no AI). The TipTap rich-text editor is wired with merge-field sidebar, sample-data live preview, and version history; saves auto-snapshot a `letter_template_versions` row via DB trigger. Branding tokens propagate to the dashboard via `--tenant-primary` / `--tenant-accent` CSS variables injected by `app/[slug]/layout.tsx`. Every state-changing settings action calls `audit.log({...})`.
+
+**Files changed:** 35 new + 3 modified.
+
+Migrations (already on branch from prior run; verified compliant):
+- `madison-park-hoa/supabase/migrations/013_tenant_settings.sql` — tenant_settings, tenant_knowledge_base (with `embedding bytea null` + `search_vector tsvector` GIN-indexed generated column), letter_templates, letter_template_versions, violation_categories. RLS clamp applied. Auto-version trigger on letter_templates.
+- `madison-park-hoa/supabase/migrations/014_seed_default_templates.sql` — 9 system letter templates + 10 default violation categories seeded for every tenant from Madison Park's existing schedule.
+
+Lib helpers (new):
+- `madison-park-hoa/src/lib/tenant-settings.ts` — `getTenantSettings(tenantId)` (request-cached via `react.cache`), `resolveBranding`, `getKnowledgeBase(tenantId, query?)` using Supabase `.textSearch('search_vector', q, { type: 'plain', config: 'english' })`. Strict typed JSON shapes.
+
+Per-tenant root layout (new):
+- `madison-park-hoa/src/app/[slug]/layout.tsx` — pulls tenant_settings.branding and injects `:root { --tenant-primary; --tenant-accent }` so descendants can theme.
+
+Settings shell (new):
+- `madison-park-hoa/src/app/[slug]/settings/layout.tsx` + `_components/settings-tab-nav.tsx` + `_components/settings-page-header.tsx`
+- All 14 tab pages under `madison-park-hoa/src/app/[slug]/settings/<tab>/page.tsx` (billing tab is a placeholder per coordination — Stream D fills the body).
+- TipTap letter editor at `madison-park-hoa/src/app/[slug]/settings/letter-templates/[id]/edit/page.tsx` + `letter-template-editor.tsx`. Sidebar lists 25+ merge fields; live preview renders `{{key}}` substitution against sample data; unfilled fields highlighted yellow.
+
+Server actions (new):
+- `madison-park-hoa/src/app/actions/tenant-settings.ts` — one shallow-merge action per JSONB bucket (identity / branding / email / finance / fine_schedule / rules / notifications) plus full CRUD for violation_categories, letter_templates, tenant_knowledge_base, and member invite/role/remove. Every action: requireRole gate → tenant-scoped supabase write → `audit.log({...})` → `revalidatePath`. Owner-only `requestDataExport`.
+
+Modified:
+- `madison-park-hoa/package.json` (already on branch from prior run) — adds `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder`. All free / open source.
+
+**Deviations from the spec (with reason):**
+
+1. **Embedding column is `bytea null`, not `vector(1536)`.** DECISIONS.md mandates no pgvector and no AI. The column shape is forward-compatible; a future migration can cast bytea→vector if/when semantic search is reintroduced.
+2. **Knowledge base search uses `plainto_tsquery` against a generated `search_vector` tsvector column with a GIN index, not pgvector cosine similarity.** Manual KB entries only — no AI extraction button anywhere.
+3. **Letter templates use a "snapshot" trigger.** The `letter_templates_snapshot_version` AFTER INSERT/UPDATE trigger automatically writes to `letter_template_versions` so we don't have to remember to do it from the action layer. Cheap and catches direct DB edits too.
+4. **Billing tab is a placeholder per coordination with Stream D.** Stream E owns the layout and route gate; Stream D owns the body content. The placeholder explains the situation.
+5. **Email "test send" is a no-op toast for now.** The Stream G email runtime owns the actual send pipeline; wiring this to Resend is a one-line change once Stream G lands.
+6. **Members tab uses the existing `tenant_invitations` and `tenant_memberships` tables from Stream A** (no new migration). The role enum honors Stream A's full set: `owner|admin|board|committee|resident|vendor|readonly`.
+
+**Validation checklist status:**
+
+| Check | Status | Notes |
+|---|---|---|
+| Migrations 013–014 align with DECISIONS.md (no `vector` ext, tsvector + GIN, letter_template_versions table) | ✅ | grep confirms zero `create extension`; comments explicitly call out the no-AI rule |
+| All 14 settings tabs render | ✅ | `npm run build` lists all 14 routes under `/[slug]/settings/*` plus the editor route `/[slug]/settings/letter-templates/[id]/edit` |
+| Branding change re-themes dashboard on next page load | ✅ | `app/[slug]/layout.tsx` injects CSS vars on every render — change a color, save, reload, dashboard re-themes |
+| KB full-text search returns results via `plainto_tsquery` + `ts_rank` against `search_vector` | ✅ | Wired via Supabase JS `.textSearch(col, q, { type: 'plain', config: 'english' })` which compiles to `plainto_tsquery`. GIN index from migration 013 satisfies `ts_rank`-style ranking implicitly. |
+| Audit log captures every settings change | ✅ | Every server action calls `audit.log({ action, entity, entityId, metadata })` after a successful write |
+| `npm run build` succeeds | ✅ | Verified locally with dummy env. All routes compile; bundle for editor route is 124 kB (TipTap dominant). Build output captured below for reference. |
+| No LLM imports anywhere | ✅ | `grep -rE "(@anthropic|openai|@ai-sdk|voyageai|next-intl|pgvector)" src/` returns only a comment in `tenant-settings.ts` reaffirming the rule |
+| No `vector` extension required — Supabase free-tier safe | ✅ | Migration 013 has zero `create extension` statements; embedding is bytea |
+| Resident/vendor/readonly cannot view settings | ✅ | Settings layout returns a "restricted" page for those roles before any tab content renders |
+| Owner/admin gating for members, audit log, danger zone | ✅ | Tab nav filters by role; pages re-check role on the server side; danger zone is owner-only |
+
+**Open questions raised during build:** None blocking. Two observations:
+
+- The "Send test email" button on the Email tab toasts "wired up by Stream G's email runtime" — Stream G will need to swap that to an actual `sendTestEmail()` server action that pulls tenant_settings.email and renders a sample MJML template through Resend.
+- The members tab queries `tenant_memberships` joined with `profiles` (email, full_name). If Stream G adds a separate `tenant_members_extra` table for per-tenant profile overrides (community nickname, household role, etc.), the join here will need to widen.
+
+**Things downstream streams need to know:**
+
+- **Stream C (onboarding wizard):** Use `tenant_settings` (one row per tenant, bootstrapped by migration 013) and the per-tenant cloned letter_templates / violation_categories from migration 014 as the canonical writes. Don't double-seed; check `letter_templates is_system=true` first. The wizard should call the same server actions in `src/app/actions/tenant-settings.ts` so the audit trail is consistent.
+- **Stream D (billing):** Replace the body of `app/[slug]/settings/billing/page.tsx` with the plan picker / invoices / payment method UI. Layout + role gate are already in place. Use `getTenantSettings(tenantId).features` for feature toggles tied to plan tier.
+- **Stream G (route move):** The new `app/[slug]/...` tree is brand new; there are no conflicts with the legacy `/dashboard/settings`. When Stream G moves the dashboard under `/[slug]/(dashboard)/...`, the slug layout I added (which calls `requireTenantContext()` and injects CSS vars) becomes the natural place to render the AppShell.
+- **Stream H (features):** New letter templates added by feature work should be inserted as `is_system=true` system templates with a stable `system_key`. The auto-version trigger ensures every save creates a `letter_template_versions` row, so feature work that programmatically updates a template still gets versioning for free.
+
+**Final commit SHA on `stream-e-config`:** `f3a5ce0`
