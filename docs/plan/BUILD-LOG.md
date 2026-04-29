@@ -67,3 +67,59 @@ Recorded so subsequent streams have ground truth.
 - ❌ pgvector extension (Stream A — schema reserves column but doesn't use)
 
 **Notable observation:** existing routes are NOT yet under `/[slug]/...`. The Stream G retrofit (path rename + tenant-scoped routing) is required and unavoidable.
+
+---
+
+## [2026-04-29 02:15] Orchestrator: Stream A complete on `stream-a-foundation`
+
+**Outcome:** arch-agent landed 10 commits with 17 files changed (2,192 +, 62 −). Migrations 008–011 (tenants, audit, existing-tables alter, storage policies), `lib/{tenant,admin,audit}.ts`, additive middleware, 4 auth pages, 2 verification scripts. Validation gate green except live-DB checks (pending Asaf running migrations on the live Supabase project).
+
+**Final commit on `stream-a-foundation`:** `7963420`
+**Action item for Asaf:** apply migrations 008–011 to live Supabase, then paste `select * from public.tenant_backfill_audit order by id;` so we can fill the `(TBD)` row counts.
+
+---
+
+## [2026-04-29 02:30] Orchestrator: Phase 2 fan-out — 5 sub-agents launched in parallel
+
+Branched from `stream-a-foundation`:
+- `stream-b-marketing` (marketing-agent)
+- `stream-c-onboarding` (onboarding-agent)
+- `stream-d-billing` (billing-agent)
+- `stream-e-config` (config-agent)
+- `stream-g-retrofit` (migration-agent)
+
+Each launched in its own git worktree with `DECISIONS.md` as authoritative.
+
+---
+
+## [2026-04-29 02:50] Orchestrator: Phase 2 INTERRUPTED — sub-agent usage cap hit
+
+**Outcome:** All 5 Phase 2 sub-agents exited early with `"You're out of extra usage · resets 3:30am (UTC)"` after producing roughly one commit each plus some uncommitted partial work. The orchestrator (this session) salvaged everything and pushed to the correct branches so nothing is lost.
+
+**Per-stream status after salvage:**
+
+| Stream | Commits on branch | What landed | What's missing |
+|---|---|---|---|
+| **B (marketing)** | 1 (salvage only) | `components/marketing/{hero,feature-grid}.tsx` (233 lines) | All 8+ pages, signup form, login flow, SEO files, PostHog wiring |
+| **C (onboarding)** | 2 (1 by agent + 1 salvage) | Migration 012 + onboarding deps (papaparse, xlsx, pdf-parse); `lib/onboarding/{csv-import,pdf-text,sample-data,slug}.ts` (829 lines) | Wizard shell, all 7 step pages, server actions, sandbox tenant flow |
+| **D (billing)** | 2 (1 by agent + 1 salvage) | Plans/subs/invoices/usage/addons schema migration (D1); `lib/stripe.ts` + Stripe SDK install | Webhook handler, checkout/portal endpoints, billing UI, limits helper, trial cron, live-mode lockfile verification |
+| **E (config)** | 2 (1 by agent + 1 salvage) | tenant_settings + KB + letter_templates schema migration (E1); package.json updates (likely TipTap) | Seed migration, settings UI shell, all 14 tab pages, branding propagation, KB UI, letter editor |
+| **G (retrofit)** | 1 (salvage only) | `components/tenant-provider.tsx`, `lib/tenant-path.ts` (108 lines) | Route move (the big refactor), all 9 server action retrofits, hardcoded-string elimination, legacy `lib/supabase/admin.ts` removal |
+
+**Salvage operation:**
+- Two of five worktrees auto-cleaned (B and G — agents got cut off before committing). Their partial files leaked into the parent checkout and were copied to `/tmp/salvage/`, then committed to the correct stream branches.
+- Three worktrees (C, D, E) survived with uncommitted changes; commits added by orchestrator (with `Orchestrator (salvage)` author) to preserve them.
+- All worktrees unlocked and removed.
+
+**Files changed:** 12 new files committed across 5 branches via salvage; 3 new salvage commits + 4 author commits = 9 new commits total.
+
+**Tests:** Not run — too little of each stream landed to be worth testing in isolation. `npm run build` likely fails on every Phase 2 branch right now because partial code doesn't compose.
+
+**Open questions raised by interrupt:**
+
+1. **Resume strategy.** Two options:
+   - (a) Wait for the per-account usage to reset at 3:30am UTC, then re-spawn the same 5 sub-agents with prompts that tell them to pick up from current branch state. Risk: same cap may hit again.
+   - (b) Have the orchestrator (this session) finish Phase 2 directly without spawning sub-agents. Lower throughput (sequential, not parallel) but no usage-cap risk.
+2. **Whether to keep partial schemas live.** Migrations 012 (Stream D plans), 012 (Stream C onboarding_progress), and 013 (Stream E tenant_settings) all exist as files on their branches but conflict with each other on numbering. Need a coordinated renumber when we merge: probably 012=plans (D), 013=tenant_settings (E), 014=onboarding_progress (C). Each agent will need to rename on resume.
+
+**Awaiting Asaf direction.**
