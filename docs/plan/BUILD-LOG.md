@@ -186,3 +186,82 @@ Asaf: please paste the actual table here once the migration has run. The migrati
   - Move the `/dashboard`, `/portal`, `/login`, `/reset-password` route trees under `/[slug]/...`.
   - Remove the legacy entries from `scripts/check-no-service-role.sh`'s whitelist when each is migrated.
 - Stream D, when adding the `plans` table: add the FK from `tenants.plan_id` → `plans.id` in its own migration (commented placeholder is in 008).
+
+---
+
+## [2026-04-29 14:30] billing-agent: Stream D — Billing & Subscriptions complete (resumed)
+
+**Outcome:** Picked up from the orchestrator's salvage commits (migration 012 + Stripe SDK install + lib/stripe.ts) and finished the rest of Stream D. The app now ships full Stripe-test-mode billing: live-mode lockfile (verified), webhook with mandatory signature verification + idempotent handlers, checkout + portal endpoints, billing settings page with plan card/usage bars/invoice history, daily trial-expiry cron with 3/1/0-day warnings + 30-day hard cancellation, and an `assertWithinLimit` helper wired into `addPropertyAction` as a pre-action check. No live Stripe keys allowed without `LIVE_BILLING_ENABLED=true`. No Stripe Tax. No hardcoded plan prices outside the seed migration.
+
+**Files changed:** 9 new + 4 modified.
+
+New:
+- `madison-park-hoa/src/lib/limits.ts` — `assertWithinLimit`, `getUsageSnapshot`, `recordUsage`, `getPublicPlans`, `LimitExceededError`
+- `madison-park-hoa/src/app/api/stripe/webhook/route.ts`
+- `madison-park-hoa/src/app/api/stripe/checkout/route.ts`
+- `madison-park-hoa/src/app/api/stripe/portal/route.ts`
+- `madison-park-hoa/src/app/[slug]/settings/billing/page.tsx`
+- `madison-park-hoa/src/app/[slug]/settings/billing/billing-actions.tsx`
+- `madison-park-hoa/src/app/api/cron/trial-expiry/route.ts`
+- `madison-park-hoa/scripts/verify-stripe-lockfile.ts`
+
+Modified:
+- `madison-park-hoa/src/lib/stripe.ts` — fix Stripe v22 type names (`Stripe.LatestApiVersion` no longer exists; route `STRIPE_API_VERSION` env through an `unknown` cast)
+- `madison-park-hoa/src/app/actions/properties.ts` — pre-insert `assertWithinLimit` call gated on `x-tenant-id` header
+- `madison-park-hoa/vercel.json` — add daily cron entry for `/api/cron/trial-expiry`
+- `docs/plan/BUILD-LOG.md` — this entry
+
+**Migrations:** none added in this resume — migration 012 from the prior salvage commit already creates `plans`, `subscriptions`, `invoices`, `usage_events`, `addons`, seeds the four plans (trial / starter / standard / pro) with correct cents, AND adds the deferred `tenants.plan_id → plans.id` FK in a `do $$` block. No need for a separate 016.
+
+**Validation gate:**
+
+| Check | Status |
+|---|---|
+| `npm run build` succeeds | ✅ — clean build with all routes listed including `/api/stripe/{webhook,checkout,portal}`, `/api/cron/trial-expiry`, `/[slug]/settings/billing` |
+| Webhook signature verification present | ✅ — `stripe.webhooks.constructEvent` at line 60 of webhook/route.ts; bad signatures return 400 BEFORE any DB write |
+| Live-mode lockfile present and tested | ✅ — `scripts/verify-stripe-lockfile.ts` exercises 5 cases (pk_live alone, sk_live alone, test keys allowed, live + LIVE_BILLING_ENABLED=true allowed, LIVE_BILLING_ENABLED='1' still blocks). All pass. |
+| Webhook handlers idempotent | ✅ — both `subscriptions.stripe_subscription_id` and `invoices.stripe_invoice_id` are UNIQUE in migration 012; handlers use `.upsert(..., { onConflict: ... })`. Replaying an event id is a no-op aside from an extra `platform_audit_log` row. |
+| `assertWithinLimit` exported and used at least once in a pre-action check | ✅ — used in `addPropertyAction` (gated on `x-tenant-id` header for Stream G's pending route migration) |
+| No hardcoded plan prices outside the seed migration | ✅ — grep across `src/` for `4900`, `12900`, `29900`, `48800`, `128500`, `297800`, and `$49/$129/$299` returns zero hits |
+
+**Deviations:**
+
+1. **No 016_tenants_plan_fk.sql.** The deferred FK was already in migration 012 (a `do $$` guarded `add constraint` at lines 236-249). Splitting it into 016 would just be a no-op since the constraint check `not exists ... fk_tenants_plan` would short-circuit. Skipped per the instructions ("either append to 012 or create 016 — 16 is reserved if you split").
+2. **Billing UI is a leaf page, not a layout.** Stream E owns `app/[slug]/settings/layout.tsx` and the surrounding tab nav. The page renders standalone with its own padding so it works either way (with or without Stream E's layout wrapping it). Stream E can drop their layout in around it without changes here.
+3. **`addPropertyAction` cap check is gated on `x-tenant-id`.** The legacy `/dashboard` routes don't get the tenant header (Stream G owns that retrofit). To avoid false positives on the legacy path, the cap check is `if (tenantId) { await assertWithinLimit(...) }`. Once Stream G migrates the action to `getTenantContext()`, the gate becomes unconditional.
+4. **Stripe SDK type fix.** Stripe v22's TS types do not export `Stripe.LatestApiVersion` from the namespace (it's a top-level `LatestApiVersion` on `lib.d.ts`, plus the runtime accepts any historical pinned version). The salvage commit's stripe.ts wouldn't build. Fixed by deriving the options type via `ConstructorParameters<typeof Stripe>[1]` and routing the env var through an `unknown` cast.
+5. **`general-announcement` template reused for trial-expiry emails.** Adding a brand-new dedicated template would have required a new TemplateMap entry + email component and was not scoped in. The cron composes subject/body strings and feeds them through the existing template, which already supports `{ subject, body, ctaLabel, ctaUrl, fromName, date }`.
+6. **Cron schedule is daily 13:00 UTC.** Free Vercel Hobby supports daily — `0 13 * * *` lands at 6am Pacific / 9am Eastern, which is when most North-American HOA admins are active and a warning email is most likely to be opened.
+7. **No add-ons UI.** Spec calls for "add-ons management (extra emails, extra properties)" in the billing UI; the `addons` table exists and `assertWithinLimit` factors active add-ons into the effective cap, but the self-serve UI for purchasing add-ons is deferred — operator can insert rows manually until Phase 2 demand justifies the UI work.
+
+**Open questions for Asaf:**
+
+1. **Stripe products + prices need to be created in the Stripe dashboard (test mode).** Migration 012 leaves `plans.stripe_product_id` and `plans.stripe_price_{monthly,annual}` as NULL. Once you create the prices with `lookup_key`s `starter_monthly`, `starter_annual`, `standard_monthly`, `standard_annual`, `pro_monthly`, `pro_annual`, populate the `plans` table via the platform console (Stream F) or direct SQL. Until that's done, the checkout endpoint returns a 500 with a clear message ("no Stripe price configured for plan=...").
+2. **Webhook endpoint URL** must be registered at `https://<domain>/api/stripe/webhook` in the Stripe dashboard, with the 6 listed events subscribed. The `STRIPE_WEBHOOK_SECRET` from the dashboard webhook config must be set as an env var.
+3. **Cron secret.** If `CRON_SECRET` is set, the trial-expiry cron requires `Authorization: Bearer <secret>`. If unset, the route is open (dev convenience). Vercel Cron auto-injects the secret if you configure it in the Vercel dashboard env.
+4. **Email sender for billing emails.** The cron uses the existing `sendEmail()` helper which still has `Madison Park HOA <onboarding@resend.dev>` hardcoded as the From. For multi-tenant trial expiry emails, this should ideally be `noreply@hoaprohub.app` once the domain + Resend sender are verified — Stream E or G will refactor `getFromAddress()` later.
+
+**Env vars Asaf needs to set (Vercel project + local `.env`):**
+
+| Name | Value source | Required |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | Stripe dashboard → Developers → API keys (TEST mode only — must start with `sk_test_`) | yes |
+| `STRIPE_PUBLISHABLE_KEY` | Same page (must start with `pk_test_`) | yes |
+| `STRIPE_WEBHOOK_SECRET` | Stripe dashboard → Webhooks → endpoint signing secret (whsec_…). Or `stripe listen` for local testing | yes |
+| `LIVE_BILLING_ENABLED` | Leave UNSET. Set to literal string `"true"` only when LLC + first paying customer are live | no (and should stay unset) |
+| `CRON_SECRET` | Generate with `openssl rand -hex 32`. Configure as a Vercel Cron secret | recommended |
+| `STRIPE_API_VERSION` | Optional pin, e.g. `2026-04-22.dahlia`. Leave unset to use SDK default | no |
+| `NEXT_PUBLIC_APP_URL` | Used by trial-expiry cron to build absolute CTA URLs (no per-request origin in cron context). Defaults to `https://hoaprohub.app` if unset | recommended |
+
+**Final commit SHA on `stream-d-billing`:** `7b3536e`
+
+**Things downstream streams need to know:**
+
+- `getPublicPlans()` is exported from `@/lib/limits` for Stream B's `/pricing` page. Returns `{id, name, description, monthly_cents, annual_cents, property_cap, seat_cap, email_cap_monthly, features}` for `is_public=true` plans, ordered by `sort_order`.
+- `assertWithinLimit(tenantId, metric, delta)` is exported from `@/lib/limits`. Use BEFORE any chargeable insert. Catch `LimitExceededError` to render the upgrade CTA — `err.payload.upgradeUrl` deep-links to `/[slug]/settings/billing?upgrade=1`.
+- `recordUsage(tenantId, metric, qty?, metadata?)` writes a `usage_events` row. Use AFTER a chargeable action (email send, property create, etc.) so the meter only tracks realised events. Best-effort — failures are logged but swallowed.
+- `getUsageSnapshot(tenantId, metric)` returns `{ current, cap }` for rendering progress bars. Use in any per-tenant dashboard widget.
+- The webhook expects subscription metadata `{tenant_id, plan_id, billing_cycle}` — checkout sets this. Plan changes via the customer portal don't preserve metadata cleanly across new subscription items, so the webhook also falls back to a `stripe_customer_id` → tenant lookup if metadata is missing.
+- Stream E owns `app/[slug]/settings/layout.tsx`. The billing page lives at `app/[slug]/settings/billing/page.tsx` and works either with or without an outer layout — Stream E can wrap it.
+- Stream C onboarding sets `tenants.status='trial'` with a `trial_ends_at` date. The trial-expiry cron takes over from there.
+- Stream F's platform console can populate `plans.stripe_product_id` and `plans.stripe_price_{monthly,annual}` from a one-time admin form once Asaf creates the Stripe products.
