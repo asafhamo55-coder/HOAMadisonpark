@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface ViolationNoticeProps {
   residentName: string
@@ -11,6 +12,7 @@ export interface ViolationNoticeProps {
   dueDate: string
   violationId: string
   dashboardUrl?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function ViolationNotice({
@@ -21,10 +23,15 @@ export function ViolationNotice({
   reportedDate = "March 15, 2026",
   dueDate = "April 14, 2026",
   violationId = "VIO-001",
-  dashboardUrl = "https://madisonparkhoa.com/dashboard",
+  dashboardUrl,
+  tenant,
 }: ViolationNoticeProps) {
+  const hoaName = tenant?.name ?? "Your HOA"
   return (
-    <BaseLayout preview={`Violation Notice: ${category} — ${propertyAddress}`}>
+    <BaseLayout
+      preview={`Violation Notice: ${category} — ${propertyAddress}`}
+      tenant={tenant}
+    >
       <Heading style={heading}>Violation Notice</Heading>
 
       <Text style={text}>Dear {residentName},</Text>
@@ -32,7 +39,7 @@ export function ViolationNotice({
       <Text style={text}>
         We hope this message finds you well. During a recent property review, we
         identified a matter at your home that we&apos;d like to bring to your
-        attention. Our goal is to work together to keep Madison Park a wonderful
+        attention. Our goal is to work together to keep {hoaName} a wonderful
         place to live for everyone.
       </Text>
 
@@ -80,7 +87,7 @@ export function ViolationNotice({
       <Text style={signature}>
         Warm regards,
         <br />
-        Madison Park HOA Board
+        {hoaName} Board
       </Text>
     </BaseLayout>
   )

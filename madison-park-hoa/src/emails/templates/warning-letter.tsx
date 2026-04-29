@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface WarningLetterProps {
   residentName: string
@@ -12,6 +13,7 @@ export interface WarningLetterProps {
   dueDate: string
   fineAmount?: string
   dashboardUrl?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function WarningLetter({
@@ -23,11 +25,14 @@ export function WarningLetter({
   violationId = "VIO-001",
   dueDate = "March 30, 2026",
   fineAmount = "$150.00",
-  dashboardUrl = "https://madisonparkhoa.com/dashboard",
+  dashboardUrl,
+  tenant,
 }: WarningLetterProps) {
+  const hoaName = tenant?.name ?? "Your HOA"
   return (
     <BaseLayout
       preview={`Warning: Unresolved ${category} violation — ${propertyAddress}`}
+      tenant={tenant}
     >
       <Heading style={heading}>Warning — Second Notice</Heading>
 
@@ -58,7 +63,7 @@ export function WarningLetter({
 
       <Text style={text}>
         We understand that circumstances may have delayed your ability to address
-        this, and we want to work with you. However, per the Madison Park HOA
+        this, and we want to work with you. However, per the {hoaName}
         covenants, unresolved violations may result in a fine of{" "}
         <strong>{fineAmount}</strong> if not corrected by{" "}
         <strong>{dueDate}</strong>.
@@ -89,7 +94,7 @@ export function WarningLetter({
       <Text style={signature}>
         Sincerely,
         <br />
-        Madison Park HOA Board
+        {hoaName} Board
       </Text>
     </BaseLayout>
   )
