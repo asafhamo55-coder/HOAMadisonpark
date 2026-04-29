@@ -1,7 +1,9 @@
 "use server"
 
+import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/auth"
+import { assertWithinLimit, LimitExceededError } from "@/lib/limits"
 import { createClient } from "@/lib/supabase/server"
 
 export type AddPropertyInput = {
@@ -29,6 +31,26 @@ export async function addPropertyAction(input: AddPropertyInput) {
 
   if (!input.address_line1.trim()) {
     return { error: "Street address is required" }
+  }
+
+  // Pre-action cap check (Stream D). When the request comes through a
+  // tenant-scoped route (`/[slug]/...`), middleware sets `x-tenant-id` and
+  // we enforce the property cap before the insert. Legacy `/dashboard`
+  // routes have no tenant header yet — Stream G owns that migration — so we
+  // skip the check there to avoid false positives.
+  try {
+    const tenantId = headers().get("x-tenant-id")
+    if (tenantId) {
+      await assertWithinLimit(tenantId, "properties", 1)
+    }
+  } catch (err) {
+    if (err instanceof LimitExceededError) {
+      return {
+        error: `Property cap reached (${err.payload.current}/${err.payload.cap}). Upgrade your plan to add more.`,
+        limit: err.payload,
+      }
+    }
+    throw err
   }
 
   const supabase = createClient()
