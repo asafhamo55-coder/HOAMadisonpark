@@ -83,4 +83,31 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Tenant brand tokens — defaults from docs/plan/10-design-system.md.
+     Tenant overrides are applied via the (slug) layout per Stream E.   */
+  :root {
+    --tenant-primary: #0F2A47;
+    --tenant-primary-fg: #FFFFFF;
+    --tenant-accent: #10B981;
+    --tenant-accent-fg: #FFFFFF;
+  }
+}
+
+/* Marketing-only utilities — kept outside @layer so they aren't tree-shaken. */
+.gradient-mesh {
+  background-image:
+    radial-gradient(at 12% 8%, rgba(16, 185, 129, 0.18) 0, transparent 42%),
+    radial-gradient(at 92% 12%, rgba(15, 42, 71, 0.18) 0, transparent 45%),
+    radial-gradient(at 50% 100%, rgba(15, 42, 71, 0.10) 0, transparent 55%),
+    linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+}
+
+.accent-text {
+  color: var(--tenant-accent);
+}
+
+.font-display {
+  font-family: var(--font-display, "Fraunces"), Georgia, serif;
+  font-feature-settings: "ss01", "ss02";
 }
