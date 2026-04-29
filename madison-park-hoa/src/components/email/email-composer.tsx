@@ -283,7 +283,6 @@ export function EmailComposer({
   function handleRevertTemplate() {
     setIsEditingTemplate(false)
     setTemplateHtmlOverride("")
-    setOriginalTemplateHtml("")
     requestPreview()
   }
 
