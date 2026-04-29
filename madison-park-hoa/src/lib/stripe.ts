@@ -79,16 +79,24 @@ export function getStripe(): Stripe {
     )
   }
 
-  cachedStripe = new Stripe(key, {
-    // Pin via env so we can roll forward without code changes; the SDK uses
-    // its bundled default if unset.
-    apiVersion: (process.env.STRIPE_API_VERSION as Stripe.LatestApiVersion | undefined) ?? undefined,
+  // Pin via env so we can roll forward without code changes; the SDK uses
+  // its bundled default if unset. The runtime accepts any historical pinned
+  // API version string, but the TS types only allow the exact LatestApiVersion
+  // constant — hence the targeted cast on the apiVersion field below.
+  type StripeOpts = ConstructorParameters<typeof Stripe>[1]
+  const stripeOptions: StripeOpts = {
     typescript: true,
     appInfo: {
       name: "HOA Pro Hub",
       version: "0.1.0",
     },
-  })
+  }
+  const apiVersion = process.env.STRIPE_API_VERSION?.trim()
+  if (apiVersion) {
+    ;(stripeOptions as unknown as { apiVersion?: string }).apiVersion =
+      apiVersion
+  }
+  cachedStripe = new Stripe(key, stripeOptions)
 
   return cachedStripe
 }
