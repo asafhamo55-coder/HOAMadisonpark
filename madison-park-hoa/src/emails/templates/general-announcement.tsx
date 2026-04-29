@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface GeneralAnnouncementProps {
   subject: string
@@ -9,6 +10,7 @@ export interface GeneralAnnouncementProps {
   ctaUrl?: string
   date?: string
   fromName?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function GeneralAnnouncement({
@@ -17,13 +19,15 @@ export function GeneralAnnouncement({
   ctaLabel,
   ctaUrl,
   date = "March 17, 2026",
-  fromName = "Madison Park HOA Board",
+  fromName,
+  tenant,
 }: GeneralAnnouncementProps) {
+  const resolvedFromName = fromName ?? `${tenant?.name ?? "Your HOA"} Board`
   // Split body by double newlines to create paragraphs
   const paragraphs = body.split(/\n\n+/).filter(Boolean)
 
   return (
-    <BaseLayout preview={subject}>
+    <BaseLayout preview={subject} tenant={tenant}>
       <Text style={dateStyle}>{date}</Text>
 
       <Heading style={heading}>{subject}</Heading>
@@ -48,7 +52,7 @@ export function GeneralAnnouncement({
       <Text style={signature}>
         Best regards,
         <br />
-        {fromName}
+        {resolvedFromName}
       </Text>
     </BaseLayout>
   )

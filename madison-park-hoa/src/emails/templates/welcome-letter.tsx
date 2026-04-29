@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Link, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface WelcomeLetterProps {
   residentName: string
@@ -8,23 +9,31 @@ export interface WelcomeLetterProps {
   moveInDate?: string
   dashboardUrl?: string
   portalLoginUrl?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function WelcomeLetter({
   residentName = "New Neighbor",
   propertyAddress = "123 Madison Park Dr",
-  portalLoginUrl = "https://madisonparkhoa.com/login",
+  portalLoginUrl,
+  tenant,
 }: WelcomeLetterProps) {
+  const hoaName = tenant?.name ?? "Your HOA"
+  const legalName = tenant?.legalName ?? `${hoaName} Homeowners Association`
+  const phone = tenant?.phone ?? null
   return (
-    <BaseLayout preview={`Welcome to Madison Park, ${residentName}!`}>
-      <Heading style={heading}>Welcome to Madison Park!</Heading>
+    <BaseLayout
+      preview={`Welcome to ${hoaName}, ${residentName}!`}
+      tenant={tenant}
+    >
+      <Heading style={heading}>Welcome to {hoaName}!</Heading>
 
       <Text style={text}>Dear {residentName},</Text>
 
       <Text style={text}>
-        On behalf of the entire Madison Park Homeowners Association Board and
-        your new neighbors, we are thrilled to welcome you to our community!
-        We&apos;re glad you chose to make {propertyAddress} your home.
+        On behalf of the entire {legalName} Board and your new neighbors, we
+        are thrilled to welcome you to our community! We&apos;re glad you chose
+        to make {propertyAddress} your home.
       </Text>
 
       <Hr style={divider} />
@@ -33,17 +42,17 @@ export function WelcomeLetter({
         About Our Community
       </Heading>
       <Text style={text}>
-        Madison Park is a vibrant neighborhood in Johns Creek, Georgia. Our HOA
-        works to maintain the quality of life, property values, and sense of
-        community that make this area special. We host seasonal events, maintain
-        common areas, and provide resources to help every resident thrive.
+        {hoaName} works to maintain the quality of life, property values, and
+        sense of community that make this area special. We host seasonal events,
+        maintain common areas, and provide resources to help every resident
+        thrive.
       </Text>
 
       <Heading as="h3" style={subheading}>
         A Few Things to Know
       </Heading>
       <Text style={listItem}>
-        <strong>HOA Dues</strong> — Quarterly dues help fund landscaping,
+        <strong>HOA Dues</strong> — Periodic dues help fund landscaping,
         amenities, and community improvements. You&apos;ll receive a payment
         schedule separately.
       </Text>
@@ -53,13 +62,12 @@ export function WelcomeLetter({
         Submit requests through the resident portal.
       </Text>
       <Text style={listItem}>
-        <strong>Common Areas</strong> — The pool, clubhouse, and walking trails
-        are available to all residents. Access information is in your welcome
-        packet.
+        <strong>Common Areas</strong> — Community amenities are available to
+        all residents. Access information is in your welcome packet.
       </Text>
       <Text style={listItem}>
         <strong>Parking & Vehicles</strong> — Please park in driveways or
-        garages. Street parking is for guests only and limited to 48 hours.
+        garages. Refer to your governing documents for street parking rules.
       </Text>
       <Text style={listItem}>
         <strong>Yard Maintenance</strong> — Lawns should be mowed regularly and
@@ -90,12 +98,18 @@ export function WelcomeLetter({
       </Heading>
       <Text style={text}>
         Questions? Concerns? Just want to say hello? The HOA Board is here for
-        you. Reach out anytime at{" "}
-        <Link href="tel:7705550142" style={link}>
-          (770) 555-0142
-        </Link>{" "}
-        or through the resident portal. Board meetings are held on the first
-        Tuesday of each month — all residents are welcome.
+        you.{" "}
+        {phone && (
+          <>
+            Reach out anytime at{" "}
+            <Link href={`tel:${phone.replace(/[^0-9+]/g, "")}`} style={link}>
+              {phone}
+            </Link>{" "}
+            or
+          </>
+        )}{" "}
+        through the resident portal. Board meeting schedules are posted in the
+        portal — all residents are welcome.
       </Text>
 
       <Text style={closing}>
@@ -105,7 +119,7 @@ export function WelcomeLetter({
       <Text style={signature}>
         Warmly,
         <br />
-        Madison Park HOA Board
+        {hoaName} Board
       </Text>
     </BaseLayout>
   )

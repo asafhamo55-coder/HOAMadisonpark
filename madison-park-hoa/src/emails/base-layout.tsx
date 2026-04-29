@@ -12,19 +12,32 @@ import {
 } from "@react-email/components"
 import * as React from "react"
 
-const HOA_NAME = "Madison Park Homeowners Association"
-const HOA_SUBTITLE = "Johns Creek, Georgia 30022"
-const HOA_ADDRESS = "123 Madison Park Drive, Johns Creek, GA 30022"
-const HOA_PHONE = "(770) 555-0142"
-const HOA_WEBSITE = "https://madisonparkhoa.com"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 interface BaseLayoutProps {
   preview: string
+  /**
+   * Tenant branding/contact info. When omitted (e.g. local preview /
+   * Storybook) the layout falls back to env vars + safe defaults so it
+   * still renders. In production every send-action must pass a tenant.
+   */
+  tenant?: Partial<TenantEmailContext>
   children: React.ReactNode
 }
 
-export function BaseLayout({ preview, children }: BaseLayoutProps) {
-  const logoUrl = process.env.NEXT_PUBLIC_HOA_LOGO_URL
+const DEFAULT_NAME = "Your HOA"
+
+export function BaseLayout({ preview, tenant, children }: BaseLayoutProps) {
+  const name =
+    tenant?.name ?? process.env.NEXT_PUBLIC_HOA_NAME ?? DEFAULT_NAME
+  const legalName = tenant?.legalName ?? `${name} Homeowners Association`
+  const address = tenant?.address ?? null
+  const phone = tenant?.phone ?? null
+  const website = tenant?.website ?? null
+  const logoUrl =
+    tenant?.branding?.logo_url ?? process.env.NEXT_PUBLIC_HOA_LOGO_URL ?? null
+  const primary = tenant?.branding?.primary_color ?? "#1e3a5f"
+  const subtitleColor = tenant?.branding?.secondary_color ?? "#94a3b8"
 
   return (
     <Html>
@@ -33,18 +46,22 @@ export function BaseLayout({ preview, children }: BaseLayoutProps) {
       <Body style={body}>
         <Container style={container}>
           {/* Header */}
-          <Section style={header}>
+          <Section style={{ ...header, backgroundColor: primary }}>
             {logoUrl && (
               <Img
                 src={logoUrl}
                 width="64"
                 height="64"
-                alt="Madison Park HOA"
+                alt={name}
                 style={logo}
               />
             )}
-            <Text style={headerTitle}>{HOA_NAME}</Text>
-            <Text style={headerSubtitle}>{HOA_SUBTITLE}</Text>
+            <Text style={headerTitle}>{legalName}</Text>
+            {address && (
+              <Text style={{ ...headerSubtitle, color: subtitleColor }}>
+                {address.split("\n")[0]}
+              </Text>
+            )}
           </Section>
 
           {/* Content */}
@@ -53,23 +70,43 @@ export function BaseLayout({ preview, children }: BaseLayoutProps) {
           {/* Footer */}
           <Section style={footer}>
             <Hr style={footerHr} />
-            <Text style={footerSentOn}>
-              Sent on behalf of Madison Park HOA Board
+            <Text style={{ ...footerSentOn, color: primary }}>
+              Sent on behalf of the {name} Board
             </Text>
             <Text style={footerText}>
-              {HOA_NAME}
-              <br />
-              {HOA_ADDRESS}
-              <br />
-              {HOA_PHONE} |{" "}
-              <Link href={HOA_WEBSITE} style={footerLink}>
-                {HOA_WEBSITE.replace("https://", "")}
-              </Link>
+              {legalName}
+              {address && (
+                <>
+                  <br />
+                  {address.split("\n").map((line, idx, arr) => (
+                    <React.Fragment key={idx}>
+                      {line}
+                      {idx < arr.length - 1 && <br />}
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
+              {(phone || website) && (
+                <>
+                  <br />
+                  {phone}
+                  {phone && website ? " | " : null}
+                  {website && (
+                    <Link
+                      href={website}
+                      style={{ ...footerLink, color: primary }}
+                    >
+                      {website.replace(/^https?:\/\//, "")}
+                    </Link>
+                  )}
+                </>
+              )}
             </Text>
             <Text style={footerSmall}>
-              You are receiving this email because you are a resident or property
-              owner in Madison Park. If you believe you received this in error,
-              please contact our office at {HOA_PHONE}.
+              You are receiving this email because you are a resident or
+              property owner in {name}.
+              {phone &&
+                ` If you believe you received this in error, please contact our office at ${phone}.`}
             </Text>
           </Section>
         </Container>
@@ -82,8 +119,7 @@ export function BaseLayout({ preview, children }: BaseLayoutProps) {
 
 const body: React.CSSProperties = {
   backgroundColor: "#f4f4f5",
-  fontFamily:
-    'Georgia, "Times New Roman", Times, serif',
+  fontFamily: 'Georgia, "Times New Roman", Times, serif',
   margin: 0,
   padding: 0,
 }
@@ -95,7 +131,6 @@ const container: React.CSSProperties = {
 }
 
 const header: React.CSSProperties = {
-  backgroundColor: "#1e3a5f",
   padding: "32px 24px 24px",
   textAlign: "center" as const,
 }
@@ -110,12 +145,10 @@ const headerTitle: React.CSSProperties = {
   fontSize: "20px",
   fontWeight: 700,
   margin: "0 0 4px",
-  fontFamily:
-    'Georgia, "Times New Roman", Times, serif',
+  fontFamily: 'Georgia, "Times New Roman", Times, serif',
 }
 
 const headerSubtitle: React.CSSProperties = {
-  color: "#94a3b8",
   fontSize: "13px",
   margin: 0,
   fontFamily:
@@ -137,7 +170,6 @@ const footerHr: React.CSSProperties = {
 
 const footerSentOn: React.CSSProperties = {
   fontSize: "12px",
-  color: "#1e3a5f",
   fontWeight: 600,
   textAlign: "center" as const,
   margin: "0 0 16px",
@@ -156,7 +188,6 @@ const footerText: React.CSSProperties = {
 }
 
 const footerLink: React.CSSProperties = {
-  color: "#1e3a5f",
   textDecoration: "underline",
 }
 

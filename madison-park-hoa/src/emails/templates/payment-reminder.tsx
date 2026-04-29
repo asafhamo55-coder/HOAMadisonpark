@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Link, Text } from "@react-email/components"
 import * as React from "react"
 import { BaseLayout } from "../base-layout"
+import type { TenantEmailContext } from "@/lib/email/tenant-email"
 
 export interface PaymentReminderProps {
   residentName: string
@@ -11,6 +12,7 @@ export interface PaymentReminderProps {
   accountNumber?: string
   paymentUrl?: string
   dashboardUrl?: string
+  tenant?: Partial<TenantEmailContext>
 }
 
 export function PaymentReminder({
@@ -18,12 +20,18 @@ export function PaymentReminder({
   amountDue = "$375.00",
   dueDate = "April 1, 2026",
   period = "Q2 2026",
-  accountNumber = "MP-10042",
-  paymentUrl = "https://madisonparkhoa.com/dashboard/payments",
+  accountNumber,
+  paymentUrl,
+  tenant,
 }: PaymentReminderProps) {
+  const hoaName = tenant?.name ?? "Your HOA"
+  const phone = tenant?.phone ?? null
+  const address = tenant?.address ?? null
+  const legalName = tenant?.legalName ?? `${hoaName} HOA`
   return (
     <BaseLayout
       preview={`HOA Dues Reminder: ${amountDue} due ${dueDate}`}
+      tenant={tenant}
     >
       <Heading style={heading}>Payment Reminder</Heading>
 
@@ -32,7 +40,7 @@ export function PaymentReminder({
       <Text style={text}>
         This is a friendly reminder that your HOA dues for{" "}
         <strong>{period}</strong> are due soon. Timely payments help us
-        maintain the amenities and services that make Madison Park a great place
+        maintain the amenities and services that make {hoaName} a great place
         to call home.
       </Text>
 
@@ -57,9 +65,9 @@ export function PaymentReminder({
         a credit card or bank transfer.
       </Text>
       <Text style={listItem}>
-        <strong>By Mail</strong> — Send a check payable to &quot;Madison Park
-        HOA&quot; to our office at 123 Madison Park Drive, Johns Creek, GA
-        30022.
+        <strong>By Mail</strong> — Send a check payable to &quot;{legalName}
+        &quot;
+        {address ? ` to our office at ${address.replace(/\n/g, ", ")}` : ""}.
       </Text>
       <Text style={listItem}>
         <strong>Auto-Pay</strong> — Set up automatic payments in the resident
@@ -81,10 +89,15 @@ export function PaymentReminder({
 
       <Text style={text}>
         If you have questions about your account or need to discuss a payment
-        plan, please contact us at{" "}
-        <Link href="tel:7705550142" style={link}>
-          (770) 555-0142
-        </Link>
+        plan, please contact us
+        {phone && (
+          <>
+            {" "}at{" "}
+            <Link href={`tel:${phone.replace(/[^0-9+]/g, "")}`} style={link}>
+              {phone}
+            </Link>
+          </>
+        )}
         . We&apos;re happy to work with you.
       </Text>
 
@@ -93,7 +106,7 @@ export function PaymentReminder({
       <Text style={signature}>
         Warm regards,
         <br />
-        Madison Park HOA Board
+        {hoaName} Board
       </Text>
     </BaseLayout>
   )
