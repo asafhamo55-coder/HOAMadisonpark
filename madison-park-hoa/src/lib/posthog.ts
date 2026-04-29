@@ -1,18 +1,14 @@
 /**
- * PostHog wrapper.
+ * PostHog wrapper — public, client-safe entry.
  *
  * Per docs/plan/DECISIONS.md, all `posthog.capture(...)` calls must be
  * no-ops if `NEXT_PUBLIC_POSTHOG_KEY` is unset, so local development needs
  * no account.
  *
- * - On the server, we lazily import `posthog-node`.
- * - On the client, the provider component (PostHogProvider) initializes
- *   `posthog-js` once on mount and exposes the global instance via this
- *   wrapper's `captureClient` function.
- *
- * No-op when:
- *  - `NEXT_PUBLIC_POSTHOG_KEY` is not set
- *  - we are running in tests / CI without the key
+ * This file is safe to import from BOTH client and server components. The
+ * server-side capture (which depends on `posthog-node`, which pulls in
+ * node:readline / node:fs) lives in `./posthog-server.ts` so the client
+ * bundle never sees it.
  *
  * NEVER call posthog.capture(...) outside of these helpers.
  */
@@ -35,38 +31,6 @@ export const POSTHOG_CONFIG = {
 }
 
 type CaptureProps = Record<string, unknown> | undefined
-
-/**
- * Server-side capture. Uses posthog-node. Safe to call even when the SDK is
- * absent or the env key is unset — it short-circuits.
- *
- * Pass `distinctId` (the user id) when you have it, otherwise an anonymous
- * placeholder is used. Always wrap in a try/catch — analytics never fails
- * a user-facing request.
- */
-export async function captureServer(
-  event: string,
-  distinctId: string | null,
-  properties?: CaptureProps,
-): Promise<void> {
-  if (!isPostHogEnabled()) return
-  try {
-    // Lazy import so the bundle doesn't carry posthog-node when the env
-    // key is unset. Static `import` would always pull the dep into the
-    // serverless function bundle.
-    const { PostHog } = await import("posthog-node")
-    const client = new PostHog(POSTHOG_KEY!, { host: POSTHOG_HOST })
-    client.capture({
-      distinctId: distinctId ?? "anon",
-      event,
-      properties,
-    })
-    // Flush + shutdown — Vercel functions are short-lived.
-    await client.shutdown()
-  } catch {
-    // Never let analytics break a request.
-  }
-}
 
 /**
  * Client-side capture. Reads the global posthog instance from window if the
