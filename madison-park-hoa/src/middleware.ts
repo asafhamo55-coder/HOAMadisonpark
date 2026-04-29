@@ -55,6 +55,7 @@ const RESERVED_FIRST_SEGMENTS = new Set([
   "contact",
   "sitemap.xml",
   "robots.txt",
+  "post-login",
 ])
 
 function isPotentialTenantSlug(segment: string | undefined): boolean {
