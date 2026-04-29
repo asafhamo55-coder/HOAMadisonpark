@@ -1,7 +1,16 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
+
+import { audit } from "@/lib/audit"
+import { requireTenantContext, type TenantRole } from "@/lib/tenant"
+import { tenantPath } from "@/lib/tenant-path"
+
+const WRITE_ROLES: TenantRole[] = ["owner", "admin", "board"]
+
+function assertCanWrite(role: TenantRole) {
+  if (!WRITE_ROLES.includes(role)) throw new Error("Forbidden")
+}
 
 export async function updateEmailTemplate(
   id: string,
@@ -11,7 +20,8 @@ export async function updateEmailTemplate(
     is_active?: boolean
   }
 ) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("email_templates")
@@ -19,7 +29,15 @@ export async function updateEmailTemplate(
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/email")
+
+  await audit.log({
+    action: "email_template.update",
+    entity: "email_templates",
+    entityId: id,
+    metadata: updates,
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "email"))
   return { error: null }
 }
 
@@ -29,20 +47,35 @@ export async function createEmailTemplate(data: {
   subject_template: string
   body_template: string
 }) {
-  const supabase = createClient()
+  const { supabase, role, tenantId, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
-  const { error } = await supabase.from("email_templates").insert({
-    ...data,
-    is_active: true,
-  })
+  const { data: row, error } = await supabase
+    .from("email_templates")
+    .insert({
+      ...data,
+      tenant_id: tenantId,
+      is_active: true,
+    })
+    .select("id")
+    .single()
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/email")
+
+  await audit.log({
+    action: "email_template.create",
+    entity: "email_templates",
+    entityId: row?.id,
+    metadata: { name: data.name, type: data.type },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "email"))
   return { error: null }
 }
 
 export async function toggleTemplateActive(id: string, is_active: boolean) {
-  const supabase = createClient()
+  const { supabase, role, tenantSlug } = await requireTenantContext()
+  assertCanWrite(role)
 
   const { error } = await supabase
     .from("email_templates")
@@ -50,6 +83,14 @@ export async function toggleTemplateActive(id: string, is_active: boolean) {
     .eq("id", id)
 
   if (error) return { error: error.message }
-  revalidatePath("/dashboard/email")
+
+  await audit.log({
+    action: "email_template.toggle_active",
+    entity: "email_templates",
+    entityId: id,
+    metadata: { is_active },
+  })
+
+  revalidatePath(tenantPath(tenantSlug, "email"))
   return { error: null }
 }
