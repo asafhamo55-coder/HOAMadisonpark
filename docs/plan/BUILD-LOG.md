@@ -123,3 +123,32 @@ Each launched in its own git worktree with `DECISIONS.md` as authoritative.
 2. **Whether to keep partial schemas live.** Migrations 012 (Stream D plans), 012 (Stream C onboarding_progress), and 013 (Stream E tenant_settings) all exist as files on their branches but conflict with each other on numbering. Need a coordinated renumber when we merge: probably 012=plans (D), 013=tenant_settings (E), 014=onboarding_progress (C). Each agent will need to rename on resume.
 
 **Awaiting Asaf direction.**
+
+---
+
+## [2026-04-29 19:35] Asaf: Stream A migrations applied to live Supabase
+
+**Outcome:** Migrations 008, 009, 010, 011 applied successfully to the production Supabase project (Madison Park HOA). Migration 010 required a one-line fix (commit `a2f0f8d` on `stream-a-foundation`): the index step assumed every legacy table has a `created_at` column, but the pre-existing `hoa_settings` (from migration 002) only has `updated_at`. The fix adds an `information_schema.columns` check to fall back to a simple `(tenant_id)` index when `created_at` is missing.
+
+**Madison Park backfill — actual row counts (zero data loss across all 14 tables):**
+
+| Table | rows_before | rows_after | rows_with_tenant |
+|---|---:|---:|---:|
+| properties | 49 | 49 | 49 |
+| residents | 58 | 58 | 58 |
+| violations | 2 | 2 | 2 |
+| letters | 13 | 13 | 13 |
+| vendors | 4 | 4 | 4 |
+| vendor_jobs | 0 | 0 | 0 |
+| announcements | 1 | 1 | 1 |
+| documents | 1 | 1 | 1 |
+| payments | 0 | 0 | 0 |
+| requests | 0 | 0 | 0 |
+| notifications | 0 | 0 | 0 |
+| hoa_settings | 4 | 4 | 4 |
+| email_templates | 11 | 11 | 11 |
+| audit_log | 11 | 11 | 11 |
+
+Madison Park tenant id: `21e9222c-7c49-4f5a-9ae4-4ab884b736ca`. Migration 010 was idempotent and ran twice cleanly (28 rows in `tenant_backfill_audit` = 14 tables × 2 runs).
+
+**Still to apply:** 012 (Stream D plans/billing), 013 (Stream E tenant_settings/KB), 014 (Stream E seed templates), 015 (Stream C onboarding_progress).
