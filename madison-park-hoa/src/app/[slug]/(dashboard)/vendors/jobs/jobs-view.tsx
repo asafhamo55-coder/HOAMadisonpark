@@ -4,8 +4,6 @@ import { useState, useMemo, useTransition } from "react"
 import { Plus, X, ArrowLeft, LayoutList, Columns3 } from "lucide-react"
 import type { WorkOrder, VendorOption, PropertyOption } from "./page-data"
 import { createWorkOrder, updateJobStatus } from "./actions"
-import { useTenantSlug } from "@/hooks/use-tenant-slug"
-import { tenantPath } from "@/lib/tenant-path"
 
 const STATUSES = [
   "requested",
