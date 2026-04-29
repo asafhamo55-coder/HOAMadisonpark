@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 import { Menu } from "lucide-react"
 
 import { pageTitles } from "@/components/dashboard/nav-config"
+import { useTenant } from "@/components/tenant-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { GlobalSearch } from "@/components/dashboard/global-search"
@@ -32,11 +33,18 @@ export function Header({
   onMenuClick: () => void
 }) {
   const pathname = usePathname()
+  const { slug } = useTenant()
+
+  // Strip the leading /<slug> so the static `pageTitles` table can match.
+  const tenantPrefix = `/${slug}`
+  const tenantRelativePath = pathname.startsWith(tenantPrefix)
+    ? pathname.slice(tenantPrefix.length) || "/"
+    : pathname
 
   // Find the most specific matching title
   const title =
     Object.entries(pageTitles)
-      .filter(([path]) => pathname.startsWith(path))
+      .filter(([path]) => tenantRelativePath.startsWith(path))
       .sort(([a], [b]) => b.length - a.length)[0]?.[1] || "Dashboard"
 
   return (

@@ -11,6 +11,8 @@ import {
   Calendar,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useTenant } from "@/components/tenant-provider"
+import { tenantPath } from "@/lib/tenant-path"
 import {
   ViolationsCategoryChart,
   ViolationsMonthChart,
@@ -61,6 +63,7 @@ function formatStatus(s: string) {
 }
 
 export function AdminDashboard({ data }: { data: AdminDashboardData }) {
+  const { slug } = useTenant()
   return (
     <div className="space-y-6">
       {/* ── Row 1: Stats ── */}
@@ -126,7 +129,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Recent Violations</CardTitle>
             <Link
-              href="/dashboard/violations"
+              href={tenantPath(slug, "violations")}
               className="text-xs text-blue-600 hover:underline"
             >
               View All
@@ -170,7 +173,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Recent Letters Sent</CardTitle>
             <Link
-              href="/dashboard/email"
+              href={tenantPath(slug, "email")}
               className="text-xs text-blue-600 hover:underline"
             >
               View All
@@ -204,7 +207,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Upcoming Vendor Jobs</CardTitle>
             <Link
-              href="/dashboard/vendors/jobs"
+              href={tenantPath(slug, "vendors", "jobs")}
               className="text-xs text-blue-600 hover:underline"
             >
               View All
@@ -240,7 +243,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Announcements</CardTitle>
             <Link
-              href="/dashboard/announcements"
+              href={tenantPath(slug, "announcements")}
               className="text-xs text-blue-600 hover:underline"
             >
               View All
@@ -300,7 +303,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
               data.attentionProperties.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/dashboard/properties/${p.id}`}
+                  href={tenantPath(slug, "properties", p.id)}
                   className="block rounded-lg border p-3 hover:bg-gray-50 transition-colors"
                 >
                   <p className="text-sm font-medium truncate">{p.address}</p>

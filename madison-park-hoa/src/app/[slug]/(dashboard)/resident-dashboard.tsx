@@ -13,6 +13,8 @@ import {
   Pin,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useTenant } from "@/components/tenant-provider"
+import { tenantPath } from "@/lib/tenant-path"
 import type { ResidentDashboardData } from "./dashboard-data"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -53,6 +55,7 @@ export function ResidentDashboard({
 }: {
   data: ResidentDashboardData
 }) {
+  const { slug } = useTenant()
   return (
     <div className="space-y-6">
       {/* Property Header */}
@@ -188,7 +191,7 @@ export function ResidentDashboard({
               Community Announcements
             </CardTitle>
             <Link
-              href="/dashboard/announcements"
+              href={tenantPath(slug, "announcements")}
               className="text-xs text-blue-600 hover:underline"
             >
               View All
@@ -241,21 +244,21 @@ export function ResidentDashboard({
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
             <Link
-              href="/dashboard/violations"
+              href={tenantPath(slug, "violations")}
               className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center hover:bg-gray-50 transition-colors"
             >
               <MessageSquare className="h-5 w-5 text-blue-600" />
               <span className="text-xs font-medium">Submit Request</span>
             </Link>
             <Link
-              href="/dashboard/announcements"
+              href={tenantPath(slug, "announcements")}
               className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center hover:bg-gray-50 transition-colors"
             >
               <Users className="h-5 w-5 text-green-600" />
               <span className="text-xs font-medium">Contact Board</span>
             </Link>
             <Link
-              href="/dashboard/documents"
+              href={tenantPath(slug, "documents")}
               className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center hover:bg-gray-50 transition-colors"
             >
               <FileText className="h-5 w-5 text-purple-600" />
