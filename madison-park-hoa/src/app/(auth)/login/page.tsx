@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
-import { login, getRole } from "@/app/(auth)/actions"
+import { login } from "@/app/(auth)/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,8 +37,7 @@ export default function LoginPage() {
       return
     }
 
-    const role = await getRole()
-    router.push(role === "resident" ? "/portal" : "/dashboard")
+    router.push("/hub")
     router.refresh()
   }
 

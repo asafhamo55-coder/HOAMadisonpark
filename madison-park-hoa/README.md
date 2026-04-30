@@ -1,6 +1,32 @@
-# Madison Park HOA Management System
+# Homeowner Hub
 
-A full-featured HOA management platform built with Next.js 14, Supabase, and Tailwind CSS. Designed for the Madison Park Homeowners Association in Johns Creek, GA.
+One platform for homeowners and property managers, with three modules:
+
+| Module | What it does |
+|---|---|
+| **HOA Hub** (`/dashboard`, `/portal`) | Run a homeowners association — properties, residents, violations, payments, announcements, resident portal. The original Madison Park HOA app. |
+| **Property Management** (`/property`) | Manage rentals — properties, units, tenants, leases, payments, vendors, utilities, maintenance. |
+| **Eviction Hub** (`/eviction`) | Stage-by-stage eviction workflow tailored per state and county. Ships with **GA – Rockdale County** and **GA – DeKalb County (Decatur)** templates. |
+
+Modules share a single account through a **workspace** model. Authenticated users land at `/hub` to pick a module. The marketing site lives at `/`, `/hoa`, `/property`, `/eviction`, `/pricing`, `/about`, `/contact`.
+
+## Architecture
+
+- `src/app/(marketing)/` — public marketing site, sitemap, robots.
+- `src/app/(auth)/` — login, signup, password reset, onboarding.
+- `src/app/(hub)/hub/` — module switcher (post-login landing).
+- `src/app/(dashboard)/` and `src/app/(portal)/` — HOA module (existing).
+- `src/app/(modules)/property/` — Property Management module.
+- `src/app/(modules)/eviction/` — Eviction Hub module.
+- `src/lib/hub/` — workspace + module entitlement utilities.
+- `src/lib/eviction/` — workflow engine.
+- `supabase/migrations/008_homeowner_hub.sql` — workspaces, members, module entitlements, leads.
+- `supabase/migrations/009_property_management.sql` — `pm_*` tables.
+- `supabase/migrations/010_eviction_workflow.sql` — `ev_*` tables + GA jurisdiction seeds.
+
+## Eviction workflow templates
+
+Workflows are JSON state machines per jurisdiction. Adding a new county = inserting a new row in `ev_workflow_definitions`, no code change. Templates ship as software bookkeeping only and are **not legal advice** — verify with counsel before driving real filings.
 
 ## System Overview
 

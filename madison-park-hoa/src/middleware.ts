@@ -1,85 +1,49 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+const PROTECTED_PREFIXES = ["/dashboard", "/portal", "/hub", "/property", "/eviction"]
+const AUTH_PAGES = ["/login", "/reset-password", "/signup"]
+
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // Skip auth checks if Supabase is not configured
   if (!supabaseUrl || !supabaseKey) {
     return NextResponse.next()
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) =>
+          request.cookies.set(name, value)
+        )
+        supabaseResponse = NextResponse.next({ request })
+        cookiesToSet.forEach(({ name, value, options }) =>
+          supabaseResponse.cookies.set(name, value, options)
+        )
+      },
+    },
   })
 
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabaseKey,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  // Refresh the session on every request
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Redirect unauthenticated users away from protected routes
-  if (
-    !user &&
-    (pathname.startsWith("/dashboard") || pathname.startsWith("/portal"))
-  ) {
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
+  if (!user && isProtected) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
-  // Residents go to /portal, everyone else goes to /dashboard
-  if (user && (pathname === "/login" || pathname === "/reset-password")) {
+  if (user && AUTH_PAGES.includes(pathname)) {
     const url = request.nextUrl.clone()
-
-    // Check user role to determine redirect target
-    const supabaseAdmin = createServerClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll() {},
-        },
-      }
-    )
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    url.pathname =
-      profile?.role === "resident" ? "/portal" : "/dashboard"
+    url.pathname = "/hub"
     return NextResponse.redirect(url)
   }
 
@@ -88,12 +52,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }

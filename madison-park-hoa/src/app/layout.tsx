@@ -25,13 +25,20 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "Madison Park HOA",
-  description: "Madison Park HOA Community Management Portal",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://homeowner-hub.app"
+  ),
+  title: {
+    default: "Homeowner Hub – HOA, Property & Eviction Management",
+    template: "%s · Homeowner Hub",
+  },
+  description:
+    "One platform for homeowners and property managers: HOA management, property management, and eviction workflows.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Madison Park",
+    title: "Homeowner Hub",
   },
   icons: {
     icon: [
