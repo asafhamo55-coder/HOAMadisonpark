@@ -44,10 +44,12 @@ create table if not exists workspace_modules (
 );
 alter table workspace_modules enable row level security;
 
--- 4. SUBSCRIPTIONS (Stripe-ready, schema only)
-create table if not exists subscriptions (
+-- 4. WORKSPACE SUBSCRIPTIONS (Stripe-ready, schema only)
+-- Named workspace_subscriptions to avoid collision with any pre-existing
+-- "subscriptions" table from other Stripe templates.
+create table if not exists workspace_subscriptions (
   id                     uuid default gen_random_uuid() primary key,
-  workspace_id           uuid references workspaces(id) on delete cascade,
+  workspace_id           uuid not null references workspaces(id) on delete cascade,
   module                 text check (module in ('hoa','property','eviction')) not null,
   stripe_customer_id     text,
   stripe_subscription_id text,
@@ -56,7 +58,7 @@ create table if not exists subscriptions (
   created_at             timestamptz default now(),
   unique (workspace_id, module)
 );
-alter table subscriptions enable row level security;
+alter table workspace_subscriptions enable row level security;
 
 -- 5. LEADS (marketing site lead capture)
 create table if not exists leads (
@@ -157,7 +159,7 @@ create policy "admins manage modules" on workspace_modules
     )
   );
 
-create policy "members read subscriptions" on subscriptions
+create policy "members read workspace_subscriptions" on workspace_subscriptions
   for select using (
     workspace_id in (select current_user_workspace_ids())
   );
