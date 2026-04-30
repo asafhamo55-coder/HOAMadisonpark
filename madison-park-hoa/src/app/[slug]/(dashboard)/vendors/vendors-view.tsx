@@ -1,9 +1,14 @@
 "use client"
 
 import { useState, useMemo, useTransition } from "react"
-import { Star, Phone, Plus, Search, Eye, Briefcase, X } from "lucide-react"
+import { Star, Phone, Plus, Search, Eye, Briefcase, X, Pencil } from "lucide-react"
 import type { Vendor } from "./page-data"
-import { createVendor, updateVendorRating, updateVendorNotes } from "./actions"
+import {
+  createVendor,
+  updateVendor,
+  updateVendorRating,
+  updateVendorNotes,
+} from "./actions"
 import { useTenantSlug } from "@/hooks/use-tenant-slug"
 import { tenantPath } from "@/lib/tenant-path"
 
@@ -79,22 +84,45 @@ function categoryColor(cat: string | null) {
 }
 
 /* ---------- Add Vendor Modal ---------- */
-function AddVendorModal({
+function VendorFormModal({
   onClose,
   onSuccess,
+  vendor,
 }: {
   onClose: () => void
   onSuccess: () => void
+  vendor?: Vendor
 }) {
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const isEdit = Boolean(vendor)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setError(null)
     const form = e.currentTarget
     const fd = new FormData(form)
     startTransition(async () => {
-      const res = await createVendor(fd)
-      if (!res.error) {
+      let res: { error: string | null }
+      if (isEdit && vendor) {
+        const updates: Record<string, unknown> = {
+          company_name: (fd.get("company_name") as string)?.trim() || null,
+          contact_name: (fd.get("contact_name") as string)?.trim() || null,
+          phone: (fd.get("phone") as string)?.trim() || null,
+          email: (fd.get("email") as string)?.trim() || null,
+          category: (fd.get("category") as string) || null,
+          address: (fd.get("address") as string)?.trim() || null,
+          license_number: (fd.get("license_number") as string)?.trim() || null,
+          insurance_expiry: (fd.get("insurance_expiry") as string) || null,
+          notes: (fd.get("notes") as string)?.trim() || null,
+        }
+        res = await updateVendor(vendor.id, updates)
+      } else {
+        res = await createVendor(fd)
+      }
+      if (res.error) {
+        setError(res.error)
+      } else {
         onSuccess()
         onClose()
       }
@@ -105,17 +133,23 @@ function AddVendorModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add Vendor</h2>
+          <h2 className="text-lg font-semibold">{isEdit ? "Edit Vendor" : "Add Vendor"}</h2>
           <button onClick={onClose}>
             <X className="h-5 w-5" />
           </button>
         </div>
+        {error && (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-sm font-medium">Company Name *</label>
             <input
               name="company_name"
               required
+              defaultValue={vendor?.company_name ?? ""}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
@@ -124,6 +158,7 @@ function AddVendorModal({
               <label className="text-sm font-medium">Contact Name</label>
               <input
                 name="contact_name"
+                defaultValue={vendor?.contact_name ?? ""}
                 className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
@@ -131,6 +166,7 @@ function AddVendorModal({
               <label className="text-sm font-medium">Phone</label>
               <input
                 name="phone"
+                defaultValue={vendor?.phone ?? ""}
                 className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
@@ -140,6 +176,7 @@ function AddVendorModal({
             <input
               name="email"
               type="email"
+              defaultValue={vendor?.email ?? ""}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
@@ -147,6 +184,7 @@ function AddVendorModal({
             <label className="text-sm font-medium">Category</label>
             <select
               name="category"
+              defaultValue={vendor?.category ?? ""}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             >
               <option value="">Select...</option>
@@ -161,6 +199,7 @@ function AddVendorModal({
             <label className="text-sm font-medium">Address</label>
             <input
               name="address"
+              defaultValue={vendor?.address ?? ""}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
@@ -169,6 +208,7 @@ function AddVendorModal({
               <label className="text-sm font-medium">License Number</label>
               <input
                 name="license_number"
+                defaultValue={vendor?.license_number ?? ""}
                 className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
@@ -177,6 +217,7 @@ function AddVendorModal({
               <input
                 name="insurance_expiry"
                 type="date"
+                defaultValue={vendor?.insurance_expiry?.slice(0, 10) ?? ""}
                 className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
@@ -186,6 +227,7 @@ function AddVendorModal({
             <textarea
               name="notes"
               rows={2}
+              defaultValue={vendor?.notes ?? ""}
               className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
@@ -194,7 +236,7 @@ function AddVendorModal({
             disabled={pending}
             className="w-full rounded-md bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {pending ? "Adding..." : "Add Vendor"}
+            {pending ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save changes" : "Add Vendor")}
           </button>
         </form>
       </div>
@@ -209,12 +251,14 @@ function VendorDetailModal({
   onClose,
   canManage,
   jobsHref,
+  onEdit,
 }: {
   vendor: Vendor
   jobs: VendorJob[]
   onClose: () => void
   canManage: boolean
   jobsHref: string
+  onEdit?: () => void
 }) {
   const [notes, setNotes] = useState(vendor.notes || "")
   const [saving, startSaving] = useTransition()
@@ -238,9 +282,19 @@ function VendorDetailModal({
       <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">{vendor.company_name}</h2>
-          <button onClick={onClose}>
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {canManage && onEdit && (
+              <button
+                onClick={onEdit}
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-slate-50"
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
+            )}
+            <button onClick={onClose}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Contact info */}
@@ -400,6 +454,7 @@ export function VendorsView({
   const [category, setCategory] = useState("All")
   const [activeOnly, setActiveOnly] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
   const [detailVendor, setDetailVendor] = useState<Vendor | null>(null)
   const [detailJobs, setDetailJobs] = useState<VendorJob[]>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -597,8 +652,16 @@ export function VendorsView({
 
       {/* Modals */}
       {showAdd && (
-        <AddVendorModal
+        <VendorFormModal
           onClose={() => setShowAdd(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
+
+      {editingVendor && (
+        <VendorFormModal
+          vendor={editingVendor}
+          onClose={() => setEditingVendor(null)}
           onSuccess={() => window.location.reload()}
         />
       )}
@@ -610,6 +673,11 @@ export function VendorsView({
           onClose={() => setDetailVendor(null)}
           canManage={canManage}
           jobsHref={jobsHref}
+          onEdit={() => {
+            const v = detailVendor
+            setDetailVendor(null)
+            setEditingVendor(v)
+          }}
         />
       )}
     </div>
