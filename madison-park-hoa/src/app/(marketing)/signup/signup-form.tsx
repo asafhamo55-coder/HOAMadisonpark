@@ -69,6 +69,25 @@ export function SignupForm({ initialPlan }: { initialPlan: Plan }) {
   function next() {
     setFieldErrors(undefined)
     setFormError(undefined)
+
+    // Step-2 client-side gate so users don't reach Step 3 without
+    // accepting the ToS or filling required account fields.
+    if (step === 2) {
+      const errs: Record<string, string[]> = {}
+      if (!values.fullName.trim()) errs.fullName = ["Full name is required"]
+      if (!values.email.trim()) errs.email = ["Email is required"]
+      if (!values.password || values.password.length < 10) {
+        errs.password = ["Use at least 10 characters"]
+      }
+      if (!values.acceptedTerms) {
+        errs.acceptedTerms = ["Please accept the Terms and Privacy Policy to continue"]
+      }
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs)
+        return
+      }
+    }
+
     setStep((s) => (Math.min(3, s + 1) as 1 | 2 | 3))
   }
   function prev() {
@@ -79,9 +98,20 @@ export function SignupForm({ initialPlan }: { initialPlan: Plan }) {
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
+    // Build FormData from the controlled `values` state — DOM-only FormData
+    // misses step-2 fields when the user is on step 3 (those inputs are
+    // unmounted by the conditional render).
+    const fd = new FormData()
     fd.set("plan", plan)
+    fd.set("fullName", values.fullName)
+    fd.set("email", values.email)
+    fd.set("password", values.password)
     if (values.acceptedTerms) fd.set("acceptedTerms", "on")
+    fd.set("communityName", values.communityName)
+    fd.set("communityType", values.communityType)
+    fd.set("state", values.state)
+    fd.set("propertyCount", values.propertyCount)
+    if (values.heardFrom) fd.set("heardFrom", values.heardFrom)
 
     startTransition(async () => {
       const result = await signUp(fd)
