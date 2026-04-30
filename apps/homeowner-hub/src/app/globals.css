@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #0F2A47;
+  --primary-hover: #1A3A5F;
+  --accent: #10B981;
+}
+
+html { scroll-behavior: smooth; }

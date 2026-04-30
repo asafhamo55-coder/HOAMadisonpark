@@ -1,2 +1,19 @@
-# Next.js build output (when built from repo root)
+# Build outputs
 .next/
+out/
+
+# Dependencies
+node_modules/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Vercel CLI
+.vercel
+
+# Logs / cache
+*.log
+.DS_Store
+.turbo/
