@@ -120,12 +120,69 @@ export const FEATURE_AREAS: FeatureArea[] = [
 ]
 
 export const NAV_LINKS = [
-  { href: "/features/properties", label: "Features" },
+  { href: "/products/hoa", label: "HOA Hub" },
+  { href: "/products/property", label: "Property Mgmt" },
+  { href: "/products/eviction", label: "Eviction Hub" },
   { href: "/pricing", label: "Pricing" },
   { href: "/about", label: "About" },
-  { href: "/demo", label: "Demo" },
   { href: "/contact", label: "Contact" },
 ] as const
+
+/**
+ * Homeowner Hub umbrella: three products positioned together.
+ * HOA Hub = the original HOA Pro Hub feature set.
+ */
+export type ProductSlug = "hoa" | "property" | "eviction"
+
+export type Product = {
+  slug: ProductSlug
+  name: string
+  tagline: string
+  description: string
+  bullets: string[]
+}
+
+export const PRODUCTS: Product[] = [
+  {
+    slug: "hoa",
+    name: "HOA Hub",
+    tagline: "Run your homeowners association.",
+    description:
+      "Properties, residents, violations, letters, payments, and a resident self-service portal — built for HOAs, condos, and master-planned communities.",
+    bullets: [
+      "Resident & property records",
+      "Violations & automated letters",
+      "Online dues & payments",
+      "Resident portal",
+    ],
+  },
+  {
+    slug: "property",
+    name: "Property Management",
+    tagline: "Tenants, leases, rent, maintenance.",
+    description:
+      "Manage every property you own or operate: units, tenants, leases, rent collection, vendors, utilities, and maintenance requests.",
+    bullets: [
+      "Tenants & leases",
+      "Rent & late fees",
+      "Vendors & maintenance",
+      "Utilities tracking",
+    ],
+  },
+  {
+    slug: "eviction",
+    name: "Eviction Hub",
+    tagline: "Stage-by-stage workflow per jurisdiction.",
+    description:
+      "Eviction is hyperlocal. We model the steps, deadlines, and notices for each state and county — starting with Georgia: Rockdale County and DeKalb County (Decatur).",
+    bullets: [
+      "State + county playbooks",
+      "Deadline tracking",
+      "Document generation (coming)",
+      "Audit trail",
+    ],
+  },
+]
 
 export const FOOTER_LINKS = {
   product: [
