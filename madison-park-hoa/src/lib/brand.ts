@@ -7,13 +7,13 @@
  */
 
 export const BRAND = {
-  name: "HOA Pro Hub",
-  shortName: "HOA Pro Hub",
+  name: "Homeowner Hub",
+  shortName: "Homeowner Hub",
   domain: "hoaprohub.app",
   url: "https://hoaprohub.app",
-  tagline: "Run your community like it's run by professionals.",
+  tagline: "One hub for everything you own.",
   description:
-    "HOA Pro Hub is the all-in-one platform for HOAs, condo associations, and master-planned communities. Properties, violations, letters, payments, and resident self-service — in one place.",
+    "Homeowner Hub is the all-in-one platform for homeowners and property managers: HOA management, property management, and eviction workflows — under a single account.",
   supportEmail: "support@hoaprohub.app",
   fromEmail: "noreply@hoaprohub.app",
   // Default tenant brand colors (overridable per-tenant via Stream E).

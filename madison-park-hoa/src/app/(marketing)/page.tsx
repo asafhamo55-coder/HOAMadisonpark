@@ -51,7 +51,7 @@ export default function HomePage() {
 
             <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 sm:text-xl">
               Three products, one account. Run your HOA, manage rentals, and
-              drive eviction workflows — all from the {BRAND.name} platform.
+              drive eviction workflows — all from one platform.
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
