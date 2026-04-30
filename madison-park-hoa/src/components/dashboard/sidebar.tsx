@@ -3,17 +3,27 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { LogOut } from "lucide-react"
+import { Building, Building2, Gavel, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { navItems } from "@/components/dashboard/nav-config"
 import { useTenant } from "@/components/tenant-provider"
 import { tenantPath } from "@/lib/tenant-path"
+import type { ModuleKey } from "@/lib/modules"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
+
+const MODULE_DEFS: Record<
+  ModuleKey,
+  { label: string; segment: string; icon: typeof Building2 }
+> = {
+  hoa: { label: "HOA Hub", segment: "", icon: Building2 },
+  property: { label: "Property Mgmt", segment: "property", icon: Building },
+  eviction: { label: "Eviction Hub", segment: "eviction", icon: Gavel },
+}
 
 function getInitials(name: string | null): string {
   if (!name) return "?"
@@ -41,10 +51,12 @@ export type SidebarUser = {
 
 export function Sidebar({
   user,
+  activeModules,
   onLogout,
   onNavigate,
 }: {
   user: SidebarUser
+  activeModules?: ModuleKey[]
   onLogout: () => void
   onNavigate?: () => void
 }) {
@@ -56,6 +68,8 @@ export function Sidebar({
     if (item.adminOnly && user.role !== "admin") return false
     return true
   })
+
+  const showModuleSwitcher = (activeModules?.length ?? 0) > 1
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -74,6 +88,44 @@ export function Sidebar({
       </div>
 
       <Separator className="bg-sidebar-muted" />
+
+      {showModuleSwitcher && (
+        <>
+          <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+            Modules
+          </div>
+          <nav className="flex flex-col gap-1 px-2 pb-2">
+            {(["hoa", "property", "eviction"] as ModuleKey[])
+              .filter((k) => activeModules!.includes(k))
+              .map((key) => {
+                const def = MODULE_DEFS[key]
+                const href = tenantPath(slug, def.segment)
+                const isActive =
+                  key === "hoa"
+                    ? !pathname.startsWith(`${dashboardRoot}/property`) &&
+                      !pathname.startsWith(`${dashboardRoot}/eviction`)
+                    : pathname.startsWith(`${dashboardRoot}/${def.segment}`)
+                return (
+                  <Link
+                    key={key}
+                    href={href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-white"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-muted hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <def.icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{def.label}</span>
+                  </Link>
+                )
+              })}
+          </nav>
+          <Separator className="bg-sidebar-muted" />
+        </>
+      )}
 
       {/* Nav items */}
       <ScrollArea className="flex-1 py-2">

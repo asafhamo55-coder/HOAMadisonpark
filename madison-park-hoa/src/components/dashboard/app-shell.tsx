@@ -9,14 +9,17 @@ import { Header } from "@/components/dashboard/header"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh"
+import type { ModuleKey } from "@/lib/modules"
 
 export function AppShell({
   user,
   userId,
+  activeModules,
   children,
 }: {
   user: SidebarUser
   userId: string
+  activeModules?: ModuleKey[]
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -35,7 +38,7 @@ export function AppShell({
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 lg:block">
-        <Sidebar user={user} onLogout={handleLogout} />
+        <Sidebar user={user} activeModules={activeModules} onLogout={handleLogout} />
       </aside>
 
       {/* Mobile sidebar drawer */}
@@ -43,6 +46,7 @@ export function AppShell({
         <SheetContent side="left" className="w-64 p-0">
           <Sidebar
             user={user}
+            activeModules={activeModules}
             onLogout={handleLogout}
             onNavigate={() => setSheetOpen(false)}
           />

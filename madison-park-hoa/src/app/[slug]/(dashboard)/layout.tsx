@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { requireTenantContext } from "@/lib/tenant"
 import { tenantPath } from "@/lib/tenant-path"
 import { AppShell } from "@/components/dashboard/app-shell"
+import type { ModuleKey } from "@/lib/modules"
 
 export default async function DashboardLayout({
   children,
@@ -25,11 +26,22 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
-  const { data: profile } = await ctx.supabase
-    .from("profiles")
-    .select("full_name, email, avatar_url")
-    .eq("id", user.id)
-    .maybeSingle()
+  const [{ data: profile }, { data: modulesData }] = await Promise.all([
+    ctx.supabase
+      .from("profiles")
+      .select("full_name, email, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle(),
+    ctx.supabase
+      .from("tenant_modules")
+      .select("module")
+      .eq("tenant_id", ctx.tenantId)
+      .in("status", ["active", "trial"]),
+  ])
+
+  const activeModules: ModuleKey[] = (modulesData ?? []).map(
+    (m) => m.module as ModuleKey
+  )
 
   return (
     <AppShell
@@ -42,6 +54,7 @@ export default async function DashboardLayout({
         avatar_url: profile?.avatar_url ?? null,
       }}
       userId={user.id}
+      activeModules={activeModules}
     >
       {children}
     </AppShell>
