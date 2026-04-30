@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu } from "lucide-react"
+import { Menu, ArrowLeftRight } from "lucide-react"
 
 import { pageTitles } from "@/components/dashboard/nav-config"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -52,8 +53,17 @@ export function Header({
         <span className="sr-only">Open menu</span>
       </Button>
 
-      {/* Page title */}
-      <h1 className="text-lg font-semibold md:text-xl">{title}</h1>
+      {/* Page title with hub crumb */}
+      <div className="flex min-w-0 flex-col">
+        <Link
+          href="/hub"
+          className="hidden items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground sm:flex"
+        >
+          Homeowner Hub
+          <ArrowLeftRight className="h-3 w-3" />
+        </Link>
+        <h1 className="truncate text-lg font-semibold md:text-xl">{title}</h1>
+      </div>
 
       <div className="ml-auto flex items-center gap-3">
         {/* Global search */}

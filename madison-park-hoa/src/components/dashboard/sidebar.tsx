@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { LogOut } from "lucide-react"
+import { ArrowLeftRight, Building2, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { navItems } from "@/components/dashboard/nav-config"
@@ -55,7 +55,23 @@ export function Sidebar({
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      {/* Logo */}
+      {/* Homeowner Hub bar */}
+      <Link
+        href="/hub"
+        onClick={onNavigate}
+        className="flex items-center justify-between border-b border-sidebar-muted px-4 py-2.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-muted hover:text-sidebar-foreground"
+      >
+        <span className="flex items-center gap-2">
+          <Building2 className="h-3.5 w-3.5" />
+          Homeowner Hub
+        </span>
+        <span className="flex items-center gap-1 text-sidebar-foreground/50">
+          <ArrowLeftRight className="h-3 w-3" />
+          Switch
+        </span>
+      </Link>
+
+      {/* Module + workspace */}
       <div className="flex h-16 items-center gap-3 px-4">
         <Image
           src={process.env.NEXT_PUBLIC_HOA_LOGO_URL || "/logo.svg"}
@@ -64,9 +80,14 @@ export function Sidebar({
           height={36}
           className="rounded-lg"
         />
-        <span className="text-sm font-semibold tracking-tight">
-          {process.env.NEXT_PUBLIC_HOA_NAME || "Madison Park HOA"}
-        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+            HOA Hub
+          </span>
+          <span className="truncate text-sm font-semibold tracking-tight">
+            {process.env.NEXT_PUBLIC_HOA_NAME || "Madison Park HOA"}
+          </span>
+        </div>
       </div>
 
       <Separator className="bg-sidebar-muted" />
